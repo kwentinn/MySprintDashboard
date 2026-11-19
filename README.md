@@ -3,6 +3,24 @@
 A local web page that turns Azure DevOps into a to-do list for the day: the pull requests waiting for my review,
 and my open PBIs and bugs with their pull requests. Handy for the daily meeting.
 
+The screenshots below use fictional data.
+
+![The Today tab: code reviews on top, my PBIs below with their status, steps and pull requests](docs/today.png)
+
+*Today: the pull requests waiting for my review (CI, threads, votes, my review report), then my PBIs in their sprint
+backlog order, each with its status, its working-file steps and its pull requests. The colored left edge says what a
+card asks of me.*
+
+<p align="center"><img src="docs/pbi-card.png" alt="A PBI card with its history and its whole status unfolded" width="460"></p>
+
+*A PBI card unfolded: the state trail and the history timeline, the whole status with the next action, the step
+chips, and its pull request with the open thread to answer.*
+
+![The daily tab: what I did the previous working day, with a short AI summary](docs/daily.png)
+
+*Yesterday · daily: what I did on the previous working day, one card per work item or pull request, and a short AI
+summary to say at the daily meeting.*
+
 ## Files
 
 | File | Role |
