@@ -1,0 +1,1016 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aujourd'hui</title>
+<link rel="icon" id="favicon" type="image/svg+xml" href="data:,">
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1d2330; --muted: #677085; --line: #e1e4ea;
+    --todo: #c2410c; --todo-bg: #fff1e8; --wait: #4b5bb5; --wait-bg: #eef0fb;
+    --ok: #15803d; --ok-bg: #e9f7ee; --bad: #b91c1c; --bad-bg: #fdecec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1b2029; --text: #e6e9ef; --muted: #8e97a8; --line: #2b313d;
+      --todo: #fb923c; --todo-bg: #3a2416; --wait: #9aa7f0; --wait-bg: #232845;
+      --ok: #4ade80; --ok-bg: #16301f; --bad: #f87171; --bad-bg: #3a1a1a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  a { color: inherit; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  header { position: sticky; top: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center;
+           padding: 12px 20px; background: var(--card); border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 18px; }
+  .counts { display: flex; gap: 8px; }
+  .meta { margin-left: auto; color: var(--muted); display: flex; gap: 12px; align-items: center; }
+  button, select { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  main, #dailyView { padding: 16px 20px 40px; max-width: 1600px; margin: 0 auto; }
+  .tabs { display: flex; gap: 4px; padding: 8px 20px 0; max-width: 1600px; margin: 0 auto; border-bottom: 1px solid var(--line); }
+  .tabs button { border: none; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 6px 12px; color: var(--muted); }
+  .tabs button.on { color: var(--text); border-bottom-color: var(--wait); font-weight: 600; }
+  .day-nav { font-size: 14px; padding: 0 8px; text-transform: none; }
+  #dailySpinner { display: none; }
+  #dailySummaryButton { margin-left: auto; font-size: 12px; padding: 3px 10px; text-transform: none; letter-spacing: 0; }
+  .daily-summary { max-width: 1000px; margin: 0 0 12px; font-size: 14px; }
+  .daily-summary ul { margin: 6px 0 0; padding-left: 20px; }
+  #daily { display: flex; flex-direction: column; gap: 10px; max-width: 1000px; }
+  .daily-events { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 4px 8px; margin-top: 6px; font-size: 13px; }
+  .daily-events .when { color: var(--muted); }
+  .daily-events b { font-weight: 600; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 20px 0 10px; }
+  /* At most 3 columns: a column is never narrower than a third of the row (titles are long). */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(360px, calc((100% - 24px) / 3)), 1fr)); gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 8px; padding: 12px 14px; }
+  .card.TODO { border-left-color: var(--todo); } .card.WAIT { border-left-color: var(--wait); } .card.OK { border-left-color: var(--ok); opacity: .75; }
+  .card { position: relative; }
+  .card .edge { position: absolute; left: -5px; top: -1px; bottom: -1px; width: 10px; cursor: help; }
+  .legend { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: help; }
+  .legend i { width: 4px; height: 14px; border-radius: 2px; background: var(--line); }
+  .legend.TODO i { background: var(--todo); } .legend.WAIT i { background: var(--wait); } .legend.OK i { background: var(--ok); }
+  .legend.TODO { color: var(--todo); font-weight: 600; }
+  .counts { gap: 14px; }
+  .top { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; }
+  .top .id { font-weight: 600; color: var(--text); }
+  .order { display: inline-block; font-size: 12px; min-width: 20px; padding: 0 6px; border-radius: 10px; text-align: center; font-weight: 600;
+                color: var(--wait); background: var(--wait-bg); border: 1px solid var(--wait); }
+  .title { font-weight: 600; margin: 4px 0 6px; }
+  .hint { font-size: 13px; }
+  .badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
+  .badge.TODO { color: var(--todo); background: var(--todo-bg); } .badge.WAIT { color: var(--wait); background: var(--wait-bg); }
+  .badge.OK { color: var(--ok); background: var(--ok-bg); } .badge.BAD { color: var(--bad); background: var(--bad-bg); }
+  .badge.state { color: var(--muted); background: var(--bg); border: 1px solid var(--line); }
+  .pr { border-top: 1px dashed var(--line); margin-top: 8px; padding-top: 8px; }
+  .pr .line { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .pr.closed { opacity: .6; }
+  .votes { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+  .vote { font-size: 11px; padding: 0 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); }
+  .vote.v10, .vote.v5 { color: var(--ok); border-color: var(--ok); } .vote.v-5 { color: var(--todo); border-color: var(--todo); }
+  .vote.v-10 { color: var(--bad); border-color: var(--bad); } .vote.me { font-weight: 700; }
+  .muted { color: var(--muted); }
+  .empty { color: var(--muted); padding: 8px 0; }
+  #error { display: none; margin: 12px 20px 0; padding: 8px 12px; border-radius: 6px; color: var(--bad); background: var(--bad-bg); }
+  .review { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--bg); font-size: 13px; }
+  .review .head { display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; }
+  .review .head button { margin-left: auto; font-size: 12px; padding: 2px 8px; }
+  .review :is(.verdict, .status) p { margin: 4px 0 0; }
+  /* A review verdict stays at 3 lines on the card (Read opens the whole file); a PBI status shows whole. */
+  .review .verdict { line-height: 1.45; }
+  .review .verdict :is(ul, ol) { margin: 2px 0 0; padding-left: 18px; }
+  .link { background: none; border: none; padding: 0; color: var(--wait); font-size: 12px; }
+  dialog { width: min(1100px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border: 1px solid var(--line);
+           border-radius: 10px; background: var(--card); color: var(--text); }
+  dialog::backdrop { background: rgba(0, 0, 0, .45); }
+  dialog .bar { position: sticky; top: 0; display: flex; gap: 12px; align-items: center; padding: 10px 20px;
+                background: var(--card); border-bottom: 1px solid var(--line); color: var(--muted); }
+  dialog .bar button { margin-left: auto; }
+  .markdown { padding: 4px 24px 24px; overflow-wrap: anywhere; }
+  .markdown h1 { font-size: 20px; } .markdown h2 { font-size: 16px; margin-top: 24px; text-transform: none; letter-spacing: 0; color: var(--text); } .markdown h3 { font-size: 14px; }
+  .markdown table { border-collapse: collapse; margin: 8px 0; font-size: 13px; display: block; overflow-x: auto; }
+  .markdown th, .markdown td { border: 1px solid var(--line); padding: 4px 8px; vertical-align: top; text-align: left; }
+  .markdown th { background: var(--bg); }
+  .markdown code { font: 12px Consolas, monospace; background: var(--bg); padding: 1px 4px; border-radius: 4px; }
+  .markdown pre { background: var(--bg); padding: 10px; border-radius: 6px; overflow-x: auto; }
+  .markdown pre code { padding: 0; }
+  .markdown a { color: var(--wait); }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--wait);
+             border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .placeholder { display: flex; gap: 10px; align-items: center; justify-content: center; min-height: 110px; color: var(--muted); }
+  h2.with-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .trail { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 2px 6px; margin: 0 0 6px; font-size: 12px; }
+  .trail .step { display: inline-flex; flex-direction: column; align-items: center; line-height: 1.25; color: var(--muted); }
+  .trail .step small { font-size: 10px; opacity: .8; }
+  .trail .step.current { color: var(--text); font-weight: 600; }
+  .trail .arrow { color: var(--muted); }
+  .trail .push { margin-left: auto; align-self: center; }
+  .timeline { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 3px 8px; margin: 8px 0 4px; padding: 8px 10px;
+              border-radius: 6px; background: var(--bg); font-size: 12px; max-height: 260px; overflow-y: auto; }
+  .timeline .when { color: var(--muted); white-space: nowrap; }
+  .timeline .state-change { font-weight: 600; }
+  .pbi-review { display: flex; align-items: center; gap: 6px; margin-left: auto; text-transform: none; letter-spacing: 0; }
+  .pbi-review input { font: inherit; font-size: 12px; width: 110px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 6px;
+                      background: var(--card); color: var(--text); }
+  .pbi-review input.invalid { border-color: var(--bad); }
+  .pbi-review button, .pbi-review select { font-size: 12px; padding: 3px 8px; }
+  .pbi-review .error { font-size: 12px; color: var(--bad); }
+  .pbi-review .error.ok { color: var(--ok); }
+  #sort { font-size: 12px; padding: 2px 6px; text-transform: none; letter-spacing: 0; color: var(--text); margin-left: 4px; }
+  .sprints { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; text-transform: none; letter-spacing: 0; }
+  .sprints button { font-size: 12px; padding: 2px 10px; border-radius: 14px; color: var(--muted); background: var(--card); }
+  .sprints button.on { color: var(--wait); background: var(--wait-bg); border-color: var(--wait); }
+  .sprints .count { margin-left: 4px; opacity: .75; }
+  .sprints .summary { font-size: 12px; color: var(--muted); align-self: center; margin-left: 4px; }
+  h2 .spinner { display: none; margin-left: 8px; width: 12px; height: 12px; }
+  main.loading h2 .spinner { display: inline-block; }
+  main.loading .grid .card { opacity: .5; transition: opacity .2s; }
+  .pr-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pr .line.details { margin-top: 5px; font-size: 12px; }
+  .pr .line.details .votes { margin-top: 0; }
+  .pr .push { margin-left: auto; }
+  .pr .push button { font-size: 12px; padding: 2px 8px; }
+  .review .next { margin-top: 4px; font-size: 12px; font-weight: 600; }
+  .review .blocked { margin-top: 2px; font-size: 12px; color: var(--bad); }
+  .review .status-line { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 13px; }
+  .review .status-line .cut { flex: 1; }
+  .review .with-chevron { display: flex; align-items: flex-end; gap: 6px; }
+  .review .with-chevron > span { flex: 1; min-width: 0; }
+  .review .chevron { all: unset; cursor: pointer; flex: none; padding: 0 4px; border-radius: 4px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+  .review .chevron:hover { background: var(--line); color: var(--text); }
+  .steps { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .steps > * { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); }
+  .steps button { color: var(--text); cursor: pointer; }
+  .steps button.current { border-color: var(--wait); color: var(--wait); background: var(--wait-bg); font-weight: 600; }
+  .steps .missing { color: var(--muted); opacity: .55; }
+  .threads.clickable { cursor: pointer; }
+  .thread-preview { margin-top: 6px; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+  .thread-line { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px;
+                 font-size: 12px; padding: 2px 4px; border-radius: 4px; cursor: pointer; }
+  .thread-line:hover { background: var(--bg); }
+  .thread-line b { font-weight: 600; }
+  .cut { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conversation { border-top: 1px solid var(--line); padding: 10px 0; }
+  .conversation:first-child { border-top: none; }
+  .conversation .where { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12px; margin-bottom: 6px; }
+  .conversation .comment { margin: 6px 0 0 6px; padding-left: 10px; border-left: 2px solid var(--line); }
+  .conversation .comment p { margin: 4px 0; }
+  .threads { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .threads .bar { width: 60px; height: 6px; border-radius: 3px; background: var(--todo-bg); border: 1px solid var(--todo); overflow: hidden; }
+  .threads .bar span { display: block; height: 100%; background: var(--ok); }
+  .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+  .pr .push { display: inline-flex; gap: 6px; }
+  .review b.label { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); }
+  .actions button { font-size: 12px; padding: 3px 10px; }
+  .actions button.done { color: var(--ok); border-color: var(--ok); }
+  .actions button.failed { color: var(--bad); border-color: var(--bad); }
+  .actions button:disabled:not(.done):not(.failed) { opacity: .45; cursor: not-allowed; }
+  @media (max-width: 480px) { .grid { grid-template-columns: 1fr; } header, main { padding-left: 16px; padding-right: 16px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="today"></h1>
+  <div class="counts" id="counts"></div>
+  <div class="meta">
+    <span id="updated" data-i18n="loading"></span>
+    <button id="refresh" data-i18n-title="refreshNow">↻</button>
+    <select id="lang" aria-label="Language"><option value="en">EN</option><option value="fr">FR</option></select>
+  </div>
+</header>
+<nav class="tabs"><button data-tab="today" class="on" data-i18n="tabToday"></button><button data-tab="daily" id="dailyTab"></button></nav>
+<div id="error"></div>
+<section id="dailyView" hidden>
+  <h2 class="with-filter"><button class="day-nav" data-day-step="-1" aria-label="-1">‹</button><span id="dailyTitle"></span>
+    <button class="day-nav" data-day-step="1" aria-label="+1">›</button><span class="spinner" id="dailySpinner"></span>
+    <button id="dailySummaryButton" data-i18n="aiSummary"></button></h2>
+  <div class="review daily-summary" id="dailySummary" hidden></div>
+  <div id="daily"></div>
+</section>
+<main id="todayView">
+  <h2 class="with-filter"><span data-i18n="reviewsTitle"></span><span class="spinner"></span>
+    <form class="pbi-review" id="pbiReview" novalidate>
+      <span class="error" id="pbiReviewError"></span>
+      <select id="reviewKind" aria-label="PBI / PR"><option value="pbi">PBI</option><option value="pr">PR</option></select>
+      <input id="pbiReviewId" autocomplete="off" aria-label="PBI / PR">
+      <button type="submit" id="pbiReviewButton" data-label="claudeAnyReview" data-i18n="claudeAnyReview"></button>
+    </form></h2>
+  <div class="grid" id="reviews"><div class="card placeholder"><span class="spinner"></span><span data-i18n="loadingPrs"></span></div></div>
+  <h2 class="with-filter"><span data-i18n="itemsTitle"></span><span class="spinner"></span>
+    <select id="sort" data-i18n-title="sortTitle"><option value="activity" data-i18n="sortActivity"></option><option value="status" data-i18n="sortStatus"></option><option value="backlog" data-i18n="sortBacklog"></option></select>
+    <span class="sprints" id="sprints"></span></h2>
+  <div class="grid" id="items"><div class="card placeholder"><span class="spinner"></span><span data-i18n="loadingPbis"></span></div></div>
+</main>
+<dialog id="reviewDialog">
+  <div class="bar"><span id="reviewFile"></span><button id="reviewClose" data-i18n="close"></button></div>
+  <div class="markdown" id="reviewBody"></div>
+</dialog>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script>
+// Texts of the page, one dictionary per language. Function entries take the values to insert.
+const texts = {
+  fr: {
+    locale: "fr-FR", day: "j", title: "Aujourd'hui",
+    loading: "Chargement...", refreshNow: "Rafraîchir maintenant", close: "Fermer",
+    reviewsTitle: "Code reviews", itemsTitle: "Mes PBIs", loadingPrs: "Chargement des PRs...", loadingPbis: "Chargement des PBIs...",
+    emptyReviews: "Aucune PR à relire.", emptyItems: "Aucun PBI ouvert.",
+    todo: n => `${n} à faire`, wip: n => `${n} en cours`, wait: n => `${n} en attente`, done: n => `${n} terminé(s)`,
+    legendTitle: "Couleur du bord gauche des cartes. Survole le bord d'une carte pour savoir pourquoi.",
+    statusNames: { TODO: "À faire", WIP: "En cours", WAIT: "En attente", OK: "Terminé" },
+    statusHelp: { TODO: "Orange : c'est à moi d'agir (relire, résoudre un conflit, relancer la CI, répondre aux threads, merger)",
+                  WIP: "Gris : PBI en cours, sans PR active qui demande quelque chose",
+                  WAIT: "Bleu : j'attends quelqu'un (relecteurs, auteur, CI en cours, PBI en attente ou en test)",
+                  OK: "Vert : rien à faire (PR approuvée par moi, mergée ou abandonnée)" },
+    reasonOnHold: state => `PBI à l'état ${state}`, reasonMerged: state => `PR mergée, PBI à l'état ${state}`,
+    reasonInProgress: "pas de PR active",
+    updating: "Mise à jour...", updated: (at, next) => `Mis à jour à ${at} · prochain dans ${next}`,
+    refreshFailed: message => `Rafraîchissement échoué : ${message}`,
+    merged: "mergée", abandoned: "abandonnée", conflicts: "conflits à résoudre", draft: "brouillon à publier",
+    ciFailed: "CI en échec", ciRequeue: "CI expirée, à relancer", openThreads: n => `${n} thread(s) ouvert(s)`,
+    noThread: "aucun thread", resolved: "résolus", threadsTitle: (open, resolved) => `${open} ouvert(s), ${resolved} résolu(s)`,
+    reviewerWaiting: "reviewer en attente de toi", approvedCiRunning: "approuvée, CI en cours",
+    readyToMerge: "approuvée, prête à merger", waitingReviewers: "en attente des reviewers",
+    toReview: "à relire", waitingAuthor: "en attente de l'auteur", approvedByMe: "approuvée par moi",
+    votes: { 10: "approuvé", 5: "approuvé (sugg.)", 0: "pas voté", "-5": "attend l'auteur", "-10": "rejeté" }, required: "requis",
+    ciExpired: "CI expirée", conflictsBadge: "conflits",
+    myReviewLink: age => `📝 ma review (${age})`, threadsReportLink: age => `📋 analyse des threads (${age})`, myReviewHead: age => `📝 Ma review, modifiée il y a ${age}`, read: "Lire",
+    by: (author, age) => `par ${author}, il y a ${age}`, noWorkItem: "aucun work item lié",
+    noPr: "pas de PR", changed: age => `dernière activité il y a ${age}`,
+    allSprints: "Tous", noSprint: "Sans sprint", currentSprint: "sprint en cours",
+    history: n => `🕒 Historique (${n})`, evCreated: state => `Créé (${state})`, evSprint: (from, to) => `Sprint : ${from} → ${to}`,
+    evAssigned: who => `Assigné à ${who}`, evPrCreated: id => `PR ${id} créée`, evPrMerged: id => `PR ${id} mergée`,
+    evPrAbandoned: id => `PR ${id} abandonnée`, evSession: "Session Claude démarrée",
+    sortTitle: "Ordre des cartes", sortActivity: "↓ Activité récente", sortStatus: "↓ Statut (à faire d'abord)", sortBacklog: "↓ Ordre du backlog",
+    backlogOrderTitle: sprint => `Ordre dans le backlog de ${sprint} (colonne Order d'ADO)`,
+    sprintSummary: (sprints, items) => `${sprints} sprint(s) · ${items} PBI(s)`, emptyFilter: "Aucun PBI dans les sprints choisis.",
+    claudeAnyReview: "🤖 Relire avec Claude", pbiReviewPlaceholder: "n° de PBI", pbiReviewInvalid: "Saisis un numéro de PBI",
+    prReviewPlaceholder: "n° de PR", prReviewInvalid: "Saisis un numéro de PR",
+    reviewerOutcome: { added: "Ajouté aux relecteurs (optionnel)", already: "Déjà relecteur", failed: "Ajout aux relecteurs impossible" },
+    threadsMore: n => `+${n} autre(s) · voir les conversations`, threadsSee: "voir la conversation",
+    conversationsTitle: (id, n) => `PR ${id} · ${n} thread(s) ouvert(s)`, openInAdo: "ouvrir dans ADO ↗", prLevelThread: "Commentaire général de la PR",
+    claudeReview: "🤖 Relire avec Claude", claudePbi: "🤖 Démarrer avec Claude", claudeThreads: "🔍 Analyser avec Claude",
+    claudePbiImplemented: "PBI déjà implémenté", claudeOpened: "✓ Session ouverte",
+    claudeResumeReview: "↩ Reprendre la relecture", claudeResumeThreads: "↩ Reprendre l'analyse",
+    claudeResume: "↩ Reprendre la session", claudeResumeTitle: date => `Dernière session démarrée le ${date}`,
+    statusMore: "Afficher tout le statut", statusLess: "Replier le statut",
+    tabToday: "Aujourd'hui", dailyTab: day => `📋 ${day} · daily`, yesterday: "Hier",
+    dailyTitle: day => `Ce que j'ai fait ${day.replace(/^./, c => c.toLowerCase())}`, dailyEmpty: "Aucune activité trouvée ce jour-là.",
+    aiSummary: "✨ Résumé IA", aiSummaryHead: "✨ Résumé pour le daily", aiSummaryRunning: "Claude résume la journée…",
+    aiSummaryFailed: message => `Résumé impossible : ${message}`,
+    dailyCount: n => `${n} action(s)`, myPr: "ma PR", prBy: author => `PR de ${author}`,
+    dailyKinds: { state: "État", sprint: "Sprint", assigned: "Assigné à", edit: "Modifié", comment: "Commentaire", created: "PR créée",
+                  merged: "PR mergée", abandoned: "PR abandonnée", thread: "Thread", reply: "Réponse", vote: "Vote", commit: "Commit",
+                  file: "Fichier", report: "Rapport", session: "Session Claude" },
+    verdictMore: "Afficher tout le verdict", verdictLess: "Replier le verdict",
+    statusHead: age => `📌 Statut, mis à jour il y a ${age}`, writtenBy: (age, sessions) => `Modifié il y a ${age} · sessions : ${sessions}`,
+    steps: { "01-summary": "Résumé", "02-analysis": "Analyse", "03-job-done": "Réalisé", "04-ai-review": "Revue IA",
+             "05-test-instructions": "Tests", "06-open-questions": "Questions", "07-pr-description": "Description PR" }, claudeFailed: "✕ Échec du lancement",
+  },
+  en: {
+    locale: "en-GB", day: "d", title: "Today",
+    loading: "Loading...", refreshNow: "Refresh now", close: "Close",
+    reviewsTitle: "Code reviews", itemsTitle: "My PBIs", loadingPrs: "Loading pull requests...", loadingPbis: "Loading PBIs...",
+    emptyReviews: "No pull request to review.", emptyItems: "No open PBI.",
+    todo: n => `${n} to do`, wip: n => `${n} in progress`, wait: n => `${n} waiting`, done: n => `${n} done`,
+    legendTitle: "Color of the cards' left edge. Hover a card's edge to see why.",
+    statusNames: { TODO: "To do", WIP: "In progress", WAIT: "Waiting", OK: "Done" },
+    statusHelp: { TODO: "Orange: my move (review, resolve a conflict, re-queue the CI, answer threads, merge)",
+                  WIP: "Grey: PBI in progress, with no active PR asking for something",
+                  WAIT: "Blue: waiting for someone (reviewers, author, running CI, PBI on hold or in test)",
+                  OK: "Green: nothing to do (PR approved by me, merged or abandoned)" },
+    reasonOnHold: state => `PBI is ${state}`, reasonMerged: state => `PR merged, PBI is ${state}`,
+    reasonInProgress: "no active PR",
+    updating: "Updating...", updated: (at, next) => `Updated at ${at} · next in ${next}`,
+    refreshFailed: message => `Refresh failed: ${message}`,
+    merged: "merged", abandoned: "abandoned", conflicts: "conflicts to resolve", draft: "draft to publish",
+    ciFailed: "CI failed", ciRequeue: "CI expired, queue it again", openThreads: n => `${n} open thread(s)`,
+    noThread: "no thread", resolved: "resolved", threadsTitle: (open, resolved) => `${open} open, ${resolved} resolved`,
+    reviewerWaiting: "a reviewer is waiting for you", approvedCiRunning: "approved, CI running",
+    readyToMerge: "approved, ready to merge", waitingReviewers: "waiting for reviewers",
+    toReview: "to review", waitingAuthor: "waiting for the author", approvedByMe: "approved by me",
+    votes: { 10: "approved", 5: "approved (suggestions)", 0: "no vote", "-5": "waiting for author", "-10": "rejected" }, required: "required",
+    ciExpired: "CI expired", conflictsBadge: "conflicts",
+    myReviewLink: age => `📝 my review (${age})`, threadsReportLink: age => `📋 threads analysis (${age})`, myReviewHead: age => `📝 My review, changed ${age} ago`, read: "Read",
+    by: (author, age) => `by ${author}, ${age} ago`, noWorkItem: "no linked work item",
+    noPr: "no pull request", changed: age => `last activity ${age} ago`,
+    allSprints: "All", noSprint: "No sprint", currentSprint: "current sprint",
+    history: n => `🕒 History (${n})`, evCreated: state => `Created (${state})`, evSprint: (from, to) => `Sprint: ${from} → ${to}`,
+    evAssigned: who => `Assigned to ${who}`, evPrCreated: id => `PR ${id} created`, evPrMerged: id => `PR ${id} merged`,
+    evPrAbandoned: id => `PR ${id} abandoned`, evSession: "Claude session started",
+    sortTitle: "Card order", sortActivity: "↓ Recent activity", sortStatus: "↓ Status (to do first)", sortBacklog: "↓ Backlog order",
+    backlogOrderTitle: sprint => `Order in the ${sprint} backlog (ADO's Order column)`,
+    sprintSummary: (sprints, items) => `${sprints} sprint(s) · ${items} PBI(s)`, emptyFilter: "No PBI in the selected sprints.",
+    claudeAnyReview: "🤖 Review with Claude", pbiReviewPlaceholder: "PBI number", pbiReviewInvalid: "Enter a PBI number",
+    prReviewPlaceholder: "PR number", prReviewInvalid: "Enter a PR number",
+    reviewerOutcome: { added: "Added as optional reviewer", already: "Already a reviewer", failed: "Could not add you as reviewer" },
+    threadsMore: n => `+${n} more · see the conversations`, threadsSee: "see the conversation",
+    conversationsTitle: (id, n) => `PR ${id} · ${n} open thread(s)`, openInAdo: "open in ADO ↗", prLevelThread: "General PR comment",
+    claudeReview: "🤖 Review with Claude", claudePbi: "🤖 Start with Claude", claudeThreads: "🔍 Analyze with Claude",
+    claudePbiImplemented: "PBI already implemented", claudeOpened: "✓ Session opened",
+    claudeResumeReview: "↩ Resume the review", claudeResumeThreads: "↩ Resume the analysis",
+    claudeResume: "↩ Resume session", claudeResumeTitle: date => `Last session started on ${date}`,
+    statusMore: "Show the whole status", statusLess: "Fold the status",
+    tabToday: "Today", dailyTab: day => `📋 ${day} · daily`, yesterday: "Yesterday",
+    dailyTitle: day => `What I did on ${day}`, dailyEmpty: "No activity found that day.",
+    aiSummary: "✨ AI summary", aiSummaryHead: "✨ Summary for the daily", aiSummaryRunning: "Claude is summing up the day…",
+    aiSummaryFailed: message => `No summary: ${message}`,
+    dailyCount: n => `${n} action(s)`, myPr: "my PR", prBy: author => `${author}'s PR`,
+    dailyKinds: { state: "State", sprint: "Sprint", assigned: "Assigned to", edit: "Edited", comment: "Comment", created: "PR created",
+                  merged: "PR merged", abandoned: "PR abandoned", thread: "Thread", reply: "Reply", vote: "Vote", commit: "Commit",
+                  file: "File", report: "Report", session: "Claude session" },
+    verdictMore: "Show the whole verdict", verdictLess: "Fold the verdict",
+    statusHead: age => `📌 Status, updated ${age} ago`, writtenBy: (age, sessions) => `Changed ${age} ago · sessions: ${sessions}`,
+    steps: { "01-summary": "Summary", "02-analysis": "Analysis", "03-job-done": "Job done", "04-ai-review": "AI review",
+             "05-test-instructions": "Tests", "06-open-questions": "Questions", "07-pr-description": "PR description" }, claudeFailed: "✕ Launch failed",
+  },
+};
+
+// Language: ?lang=, else the last choice, else the browser's; the choice is kept in localStorage when allowed.
+const storedLanguage = () => { try { return localStorage.getItem("dashboard.lang"); } catch { return null; } };
+let lang = [new URLSearchParams(location.search).get("lang"), storedLanguage(), navigator.language.slice(0, 2)]
+  .find(code => code in texts) ?? "en";
+const t = key => texts[lang][key];
+
+const refreshSeconds = Number(new URLSearchParams(location.search).get("refresh")) || 600;
+const rank = { TODO: 0, WIP: 1, WAIT: 2, OK: 3 };
+let nextRefresh = 0, loading = false, lastData = null;
+
+const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const ago = iso => {
+  if (!iso) return "";
+  const hours = (Date.now() - new Date(iso)) / 36e5;
+  return hours < 1 ? "< 1 h" : hours < 48 ? `${Math.round(hours)} h` : `${Math.round(hours / 24)} ${t("day")}`;
+};
+const worst = statuses => statuses.reduce((a, b) => (rank[b] < rank[a] ? b : a), "OK");
+
+// What a pull request asks of me, as [status, hint].
+function prAction(pr) {
+  if (pr.status === "completed") return ["OK", t("merged")];
+  if (pr.status === "abandoned") return ["OK", t("abandoned")];
+  if (pr.mergeStatus === "conflicts") return ["TODO", t("conflicts")];
+  if (pr.isMine) {
+    if (pr.isDraft) return ["TODO", t("draft")];
+    if (pr.ci?.status === "failed") return ["TODO", t("ciFailed")];
+    if (pr.ci?.status === "expired") return ["TODO", t("ciRequeue")];
+    if (pr.openThreads > 0) return ["TODO", t("openThreads")(pr.openThreads)];
+    if (pr.reviewers.some(r => r.vote < 0)) return ["TODO", t("reviewerWaiting")];
+    const required = pr.reviewers.filter(r => r.isRequired && !r.isMe);
+    const approved = (required.length ? required : pr.reviewers.filter(r => !r.isMe)).every(r => r.vote >= 5);
+    if (approved && pr.reviewers.length)
+      return pr.ci?.status === "running" ? ["WAIT", t("approvedCiRunning")] : ["TODO", t("readyToMerge")];
+    return ["WAIT", t("waitingReviewers")];
+  }
+  const me = pr.reviewers.find(r => r.isMe);
+  if (!me || me.vote === 0) return ["TODO", t("toReview")];
+  if (me.vote < 0) return ["WAIT", t("waitingAuthor")];
+  return ["OK", t("approvedByMe")];
+}
+
+// What a PBI asks of me, as [status, reason]: the most urgent of its active PRs, else its state.
+function itemAction(item) {
+  const active = item.pullRequests.filter(pr => pr.status === "active").map(pr => [pr, ...prAction(pr)]);
+  if (active.length) {
+    const [pr, status, hint] = active.reduce((a, b) => (rank[b[1]] < rank[a[1]] ? b : a));
+    return [status, `PR ${pr.id} : ${hint}`];
+  }
+  if (/hold|blocked/i.test(item.state)) return ["WAIT", t("reasonOnHold")(item.state)];
+  if (item.pullRequests.length && /code review|testing/i.test(item.state)) return ["WAIT", t("reasonMerged")(item.state)];
+  return ["WIP", t("reasonInProgress")];
+}
+
+// The colored left edge of a card says what it asks of me; hovering it names the status and why.
+const edge = (status, reason) => `<span class="edge" title="${esc(`${t("statusNames")[status]} - ${reason}`)}"></span>`;
+
+// Markdown files of the workspace: reviews (reviews/<pr>-review.md, <pr>-threads.md) and PBI working files
+// (pbis/pbi-<id>/<step>.md), keyed "review:<pr>" / "threads:<pr>" / "pbi:<id>:<step>". Rendered with marked and
+// sanitized with DOMPurify; raw text if the CDN is unreachable.
+const documents = new Map();
+const markdown = text => window.marked && window.DOMPurify
+  ? DOMPurify.sanitize(marked.parse(text), { ADD_ATTR: ["target"] })
+  : `<pre>${esc(text)}</pre>`;
+const section = (text, name) => {
+  const match = text.match(new RegExp(`^##\\s+${name}\\s*$([\\s\\S]*?)(?=^##\\s|(?![\\s\\S]))`, "m"));
+  return match ? match[1].trim() : "";
+};
+// Reports come in English, with a French translation under "fr" when the session wrote one: show it in French.
+const localized = report => report && lang === "fr" && report.fr ? report.fr : report;
+const reviewButton = pr => (pr.review
+  ? `<button class="link" data-doc="review:${pr.id}">${esc(t("myReviewLink")(ago(localized(pr.review).updated)))}</button>` : "")
+  + threadsReportButton(pr);
+const threadsReportButton = pr => pr.threadsReport
+  ? `<button class="link" data-doc="threads:${pr.id}">${esc(t("threadsReportLink")(ago(localized(pr.threadsReport).updated)))}</button>` : "";
+const reviewBlock = pr => {
+  const review = localized(pr.review);
+  if (!review) return threadsReportButton(pr);
+  const summary = section(frontmatter(review.markdown).body, "Verdict");
+  const head = `<div class="head">${esc(t("myReviewHead")(ago(review.updated)))}
+      <button data-doc="review:${pr.id}">${esc(t("read"))}</button></div>`;
+  if (!summary) return `<div class="review">${head}${threadsReportButton(pr)}</div>`;
+  // Like a PBI status: folded to its first line by default, the chevron unfolds the whole verdict.
+  const open = openVerdicts.has(pr.id);
+  const chevron = `<button class="chevron" data-verdict-toggle="${pr.id}" title="${esc(t(open ? "verdictLess" : "verdictMore"))}"
+      aria-expanded="${open}">${open ? "▴" : "▾"}</button>`;
+  const firstLine = plainText(summary.split(/\r?\n/).find(line => line.trim()) ?? "");
+  const verdict = open
+    ? `<div class="verdict with-chevron"><span>${markdown(summary)}</span>${chevron}</div>`
+    : `<div class="status-line"><span class="cut" title="${esc(firstLine)}">${esc(firstLine)}</span>${chevron}</div>`;
+  return `<div class="review">${head}${verdict}${threadsReportButton(pr)}</div>`;
+};
+const openVerdicts = new Set();
+// PBI working files (pbis/pbi-<id>/00-status.md ... 07-pr-description.md, rule in the workspace CLAUDE.md). Each starts
+// with a YAML frontmatter (updated, session, sessions, and step / next / blockedBy for the status): flat "key: value"
+// lines are enough here. A "#" comment needs a space after it, so "#247129" stays in a value.
+const frontmatter = text => {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text ?? "");
+  const fields = {};
+  if (match) match[1].split(/\r?\n/).forEach(line => {
+    const field = /^(\w+):\s*(.*?)(?:\s+#\s.*)?$/.exec(line);
+    if (field) fields[field[1]] = field[2].trim().replace(/^(["'])(.*)\1$/, "$2");
+  });
+  return { fields, body: match ? text.slice(match[0].length) : text ?? "" };
+};
+const pbiSteps = ["01-summary", "02-analysis", "03-job-done", "04-ai-review", "05-test-instructions", "06-open-questions", "07-pr-description"];
+
+// On the card: the status (its lines, the next action, what blocks), then one chip per step, lit when its file exists.
+const statusBlock = item => {
+  const file = localized(item.files?.["00-status"]);
+  const steps = stepChips(item, file && frontmatter(file.markdown).fields.step);
+  if (!file) return steps;
+  const { fields, body } = frontmatter(file.markdown);
+  const head = `<div class="head">${esc(t("statusHead")(ago(fields.updated || file.updated)))}
+      <button data-doc="pbi:${item.id}:00-status">${esc(t("read"))}</button></div>`;
+  const chevron = open => `<button class="chevron" data-status-toggle="${item.id}" title="${esc(t(open ? "statusLess" : "statusMore"))}"
+      aria-expanded="${open}">${open ? "▴" : "▾"}</button>`;
+  // Folded (the default): one line, what blocks, else the next action, else the first line of the text.
+  if (!openStatuses.has(item.id)) {
+    const [cls, text] = fields.blockedBy ? ["blocked", `⛔ ${fields.blockedBy}`]
+      : fields.next ? ["next", `→ ${fields.next}`] : ["", plainText(body.split(/\r?\n/).find(line => line.trim()) ?? "")];
+    return `<div class="review">${head}<div class="status-line ${cls}"><span class="cut" title="${esc(text)}">${esc(text)}</span>${chevron(false)}</div>${steps}</div>`;
+  }
+  // Unfolded: the whole status, the up chevron at the end of its last line.
+  const line = (cls, text, last) => `<div class="${cls} with-chevron"><span>${text}</span>${last ? chevron(true) : ""}</div>`;
+  return `<div class="review">${head}
+    ${line("status", markdown(body), !fields.next && !fields.blockedBy)}
+    ${fields.next ? line("next", `→ ${esc(fields.next)}`, !fields.blockedBy) : ""}
+    ${fields.blockedBy ? line("blocked", `⛔ ${esc(fields.blockedBy)}`, true) : ""}${steps}</div>`;
+};
+// Statuses unfolded by a click; they stay so across refreshes.
+const openStatuses = new Set();
+
+const stepChips = (item, current) => {
+  if (!Object.keys(item.files ?? {}).length) return "";
+  return `<div class="steps">${pbiSteps.map(step => {
+    const label = `${step.slice(0, 2)} ${t("steps")[step]}`;
+    return item.files[step]
+      ? `<button data-doc="pbi:${item.id}:${step}" class="${step === current ? "current" : ""}">${esc(label)}</button>`
+      : `<span class="missing">${esc(label)}</span>`;
+  }).join("")}</div>`;
+};
+
+// The documents the Read buttons open, in the page language.
+function registerDocuments() {
+  documents.clear();
+  const add = (key, report, label) => {
+    const doc = localized(report);
+    if (!doc) return;
+    // The frontmatter becomes one line above the text: last change and the sessions that wrote the file.
+    const { fields, body } = frontmatter(doc.markdown);
+    const meta = fields.session ? `*${t("writtenBy")(ago(fields.updated || doc.updated), fields.sessions || fields.session)}*\n\n` : "";
+    documents.set(key, { file: `${doc.file} · ${label}`, markdown: meta + body });
+  };
+  [...lastData.reviews, ...lastData.workItems.flatMap(w => w.pullRequests)].forEach(pr => {
+    add(`review:${pr.id}`, pr.review, `PR ${pr.id}`);
+    add(`threads:${pr.id}`, pr.threadsReport, `PR ${pr.id}`);
+  });
+  lastData.workItems.forEach(item =>
+    Object.entries(item.files ?? {}).forEach(([step, report]) => add(`pbi:${item.id}:${step}`, report, `#${item.id}`)));
+  conversations.clear();
+  [...lastData.reviews, ...lastData.workItems.flatMap(w => w.pullRequests)]
+    .filter(pr => pr.threads?.length).forEach(pr => conversations.set(pr.id, pr));
+}
+
+function openDocument(key) {
+  const doc = documents.get(key);
+  if (doc) showDialog(doc.file, markdown(doc.markdown));
+}
+
+function showDialog(title, html) {
+  document.getElementById("reviewFile").textContent = title;
+  const body = document.getElementById("reviewBody");
+  body.innerHTML = html;
+  body.querySelectorAll("a").forEach(a => a.target = "_blank");
+  document.getElementById("reviewDialog").showModal();
+  body.parentElement.scrollTop = 0;
+}
+
+// Open comment threads of a pull request. On the card, one line per thread (author, start of the first comment,
+// age), two at most then "+N"; the popup shows each conversation whole, with its file, line and a link to Azure DevOps.
+const conversations = new Map();
+const plainText = text => String(text ?? "").replace(/[`*_>#\[\]]/g, "").replace(/\s+/g, " ").trim();
+
+function threadsPreview(pr) {
+  if (!pr.threads?.length) return "";
+  const lines = pr.threads.slice(0, 2).map(thread => {
+    const first = thread.comments[0] ?? {};
+    return `<button class="thread-line" data-conversations="${pr.id}" title="${esc(thread.file ? `${thread.file.split("/").pop()}:${thread.line ?? ""}` : "PR")}">
+      <span>💬</span><span class="cut"><b>${esc(first.author)}</b> · ${esc(plainText(first.content))}</span><span class="muted">${ago(first.date)}</span></button>`;
+  }).join("");
+  const more = pr.threads.length > 2 ? t("threadsMore")(pr.threads.length - 2) : t("threadsSee");
+  return `<div class="thread-preview">${lines}<button class="link" data-conversations="${pr.id}">${esc(more)}</button></div>`;
+}
+
+function openConversations(id) {
+  const pr = conversations.get(Number(id));
+  if (!pr) return;
+  const html = pr.threads.map(thread => `<section class="conversation">
+      <div class="where">${thread.file ? `<code>${esc(thread.file)}${thread.line ? `:${thread.line}` : ""}</code>` : `<span class="muted">${esc(t("prLevelThread"))}</span>`}
+        <a href="${esc(thread.url)}">${esc(t("openInAdo"))}</a></div>
+      ${thread.comments.map(comment => `<div class="comment"><div class="muted"><b>${esc(comment.author)}</b> · ${ago(comment.date)}</div>${markdown(comment.content ?? "")}</div>`).join("")}
+    </section>`).join("");
+  showDialog(t("conversationsTitle")(pr.id, pr.threads.length), html);
+}
+
+// Build policy state of an active pull request, linking to the build.
+const ciBadge = pr => {
+  if (!pr.ci) return "";
+  const labels = {
+    failed: ["BAD", "CI ✕"], expired: ["TODO", esc(t("ciExpired"))], succeeded: ["OK", "CI ✓"],
+    running: ["WAIT", '<span class="spinner" style="width:9px;height:9px;border-width:1.5px"></span> CI'],
+  };
+  const [cls, label] = labels[pr.ci.status] ?? ["state", `CI ${esc(pr.ci.status)}`];
+  const badge = `<span class="badge ${cls}" title="Build policy: ${esc(pr.ci.status)}">${label}</span>`;
+  return pr.ci.buildUrl ? `<a href="${esc(pr.ci.buildUrl)}" target="_blank">${badge}</a>` : badge;
+};
+
+// Comment threads of an active pull request: a bar of the resolved share, green over amber, with "resolved/total".
+const threadsBar = pr => {
+  if (pr.totalThreads == null) return "";
+  if (pr.totalThreads === 0) return `<span class="threads muted">💬 ${esc(t("noThread"))}</span>`;
+  const resolved = pr.totalThreads - pr.openThreads;
+  return `<span class="threads${pr.threads?.length ? " clickable" : ""}" title="${esc(t("threadsTitle")(pr.openThreads, resolved))}"${pr.threads?.length ? ` data-conversations="${pr.id}"` : ""}>💬
+    <span class="bar"><span style="width:${Math.round(100 * resolved / pr.totalThreads)}%"></span></span>
+    ${resolved}/${pr.totalThreads} ${esc(t("resolved"))}</span>`;
+};
+
+// Button that opens a Claude session in a new Windows Terminal tab (POST /api/sessions/<kind>/<id>).
+const claudeButton = (kind, id, label, title) =>
+  `<button data-claude="${kind}/${id}" data-label="${label}"${title ? ` title="${esc(title)}"` : ""}>${esc(t(label))}</button>`;
+// Shown only when the pull request has unresolved threads.
+const threadsButton = pr => claudeButton("threads", pr.id, "claudeThreads", t("threadsTitle")(pr.openThreads, pr.totalThreads - pr.openThreads));
+// Resume the last review or thread analysis of a pull request (reviews/sessions.jsonl), next to the button that starts a new one.
+const sessionDate = session => new Date(session.startedAt).toLocaleString(t("locale"), { dateStyle: "short", timeStyle: "short" });
+const resumeReviewButton = pr => pr.reviewSession
+  && claudeButton("review-resume", pr.id, "claudeResumeReview", t("claudeResumeTitle")(sessionDate(pr.reviewSession)));
+const resumeThreadsButton = pr => pr.threadsSession
+  && claudeButton("threads-resume", pr.id, "claudeResumeThreads", t("claudeResumeTitle")(sessionDate(pr.threadsSession)));
+const disabledClaudeButton = (label, reason) => `<button disabled title="${esc(t(reason))}">${esc(t(label))}</button>`;
+const actions = (...buttons) => `<div class="actions">${buttons.filter(Boolean).join("")}</div>`;
+const pbiActions = item => actions(
+  item.lastSession && claudeButton("resume", item.id, "claudeResume",
+    t("claudeResumeTitle")(new Date(item.lastSession.startedAt).toLocaleString(t("locale"), { dateStyle: "short", timeStyle: "short" }))),
+  /^implemented$/i.test(item.state) ? disabledClaudeButton("claudePbi", "claudePbiImplemented") : claudeButton("pbi", item.id, "claudePbi"));
+
+// Returns the JSON the server sent back, if any (the reviewer outcome of a typed PR).
+async function openClaude(button, target = button.dataset.claude, query = "") {
+  button.disabled = true;
+  let ok = false, result = null;
+  try {
+    // The page language is the language Claude answers in, and adds a French copy of the report.
+    const response = await fetch(`/api/sessions/${target}?lang=${lang}${query}`, { method: "POST", headers: { "X-Dashboard": "1" } });
+    ok = response.ok;
+    if (response.headers.get("content-type")?.includes("json")) result = await response.json();
+  } catch { }
+  button.textContent = t(ok ? "claudeOpened" : "claudeFailed");
+  button.classList.add(ok ? "done" : "failed");
+  setTimeout(() => {
+    button.disabled = false;
+    button.classList.remove("done", "failed");
+    button.textContent = t(button.dataset.label);
+    // A new PBI session is recorded on the server: refresh so its card gets the Resume button.
+    if (ok && target.startsWith("pbi/")) load();
+  }, 4000);
+  return result;
+}
+
+const votes = pr => `<div class="votes">${pr.reviewers.map(r =>
+  `<span class="vote v${r.vote}${r.isMe ? " me" : ""}" title="${esc(t("votes")[r.vote] ?? r.vote)}${r.isRequired ? `, ${t("required")}` : ""}">${esc(r.name)} ${r.vote > 0 ? "✓" : r.vote < 0 ? "✕" : "·"}</span>`).join("")}</div>`;
+
+const prBlock = pr => {
+  const [status, hint] = prAction(pr);
+  const closed = pr.status !== "active";
+  // Two levels: number, title and what the PR asks of me, then its indicators (a closed PR keeps only the first).
+  const head = `<div class="line"><a href="${esc(pr.url)}" target="_blank"><b>PR ${pr.id}</b></a>
+      <a class="pr-title" href="${esc(pr.url)}" target="_blank" title="${esc(pr.title)}">${esc(pr.title)}</a>
+      <span class="badge ${status}">${esc(hint)}</span></div>`;
+  if (closed) return `<div class="pr closed">${head}</div>`;
+  return `<div class="pr">${head}
+    <div class="line details"><span class="muted">${esc(pr.repository)} → ${esc(pr.targetBranch)}</span>
+      ${pr.isDraft ? '<span class="badge state">draft</span>' : ""}${ciBadge(pr)}${threadsBar(pr)}${votes(pr)}${reviewButton(pr)}
+      ${pr.openThreads > 0 ? `<span class="push">${resumeThreadsButton(pr) || ""}${threadsButton(pr)}</span>` : ""}</div>${threadsPreview(pr)}</div>`;
+};
+
+function reviewCard(pr) {
+  const [status, hint] = prAction(pr);
+  // Each linked work item with its order in its sprint backlog, as on a PBI card.
+  const items = pr.workItems.map(w => `${w.backlogOrder ? `<span class="order" title="${esc(t("backlogOrderTitle")(w.iteration))}">${w.backlogOrder}</span> ` : ""}<a href="${esc(w.url)}" target="_blank">#${w.id}</a> <span class="muted">${esc(w.state)}</span>`).join(", ");
+  return { status, activity: latest(pr.lastActivity, pr.review?.updated), html: `<div class="card ${status}">${edge(status, hint)}
+    <div class="top"><a class="id" href="${esc(pr.url)}" target="_blank">PR ${pr.id}</a><span>${esc(pr.repository)}</span>
+      <span>${esc(t("by")(pr.author, ago(pr.createdDate)))}</span>${ciBadge(pr)}<span style="margin-left:auto" class="badge ${status}">${esc(hint)}</span></div>
+    <div class="title"><a href="${esc(pr.url)}" target="_blank">${esc(pr.title)}</a></div>
+    <div class="hint muted">${items || esc(t("noWorkItem"))} ${threadsBar(pr)}
+      ${pr.mergeStatus === "conflicts" ? ` · <span class="badge BAD">${esc(t("conflictsBadge"))}</span>` : ""}</div>
+    ${threadsPreview(pr)}
+    ${votes(pr)}${reviewBlock(pr)}${actions(resumeThreadsButton(pr), pr.openThreads > 0 && threadsButton(pr), resumeReviewButton(pr), claudeButton("review", pr.id, "claudeReview"))}</div>` };
+}
+
+// History of a PBI. Under the title, the trail of its states with the date each was reached, the current one last,
+// and the Historique button; the button unfolds the whole timeline in the card (state, sprint and assignment changes
+// from Azure DevOps, PRs created and closed, Claude sessions), newest first. Open timelines stay open on refresh.
+const openHistories = new Set();
+const shortDate = iso => new Date(iso).toLocaleDateString(t("locale"), { day: "2-digit", month: "2-digit" });
+const shortDateTime = iso => `${shortDate(iso)} ${new Date(iso).toLocaleTimeString(t("locale"), { hour: "2-digit", minute: "2-digit" })}`;
+
+function historyEvents(item) {
+  const events = (item.history ?? []).map(event => ({ ...event }));
+  item.pullRequests.forEach(pr => {
+    if (pr.createdDate) events.push({ type: "prCreated", date: pr.createdDate, by: pr.author, pr: pr.id });
+    if (pr.closedDate && pr.status !== "active") events.push({ type: pr.status === "completed" ? "prMerged" : "prAbandoned", date: pr.closedDate, pr: pr.id });
+  });
+  (item.sessions ?? []).forEach(session => events.push({ type: "session", date: session.startedAt }));
+  return events.sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+function stateTrail(item) {
+  const steps = (item.history ?? []).filter(event => event.type === "created" || event.type === "state");
+  const count = historyEvents(item).length;
+  const button = count
+    ? `<button class="link push" data-history="${item.id}">${esc(t("history")(count))} ${openHistories.has(item.id) ? "▴" : "▾"}</button>` : "";
+  return `<div class="trail">${steps.map((step, index) =>
+    `${index ? '<span class="arrow">→</span>' : ""}<span class="step${index === steps.length - 1 ? " current" : ""}" title="${esc(step.by ?? "")}">${esc(step.to)}<small>${shortDate(step.date)}</small></span>`).join("")}${button}</div>`;
+}
+
+function historyTimeline(item) {
+  if (!openHistories.has(item.id)) return "";
+  const icon = { created: "✨", state: "➜", sprint: "📅", assigned: "👤", prCreated: "🔀", prMerged: "✅", prAbandoned: "🚫", session: "🤖" };
+  const text = event => ({
+    created: () => t("evCreated")(event.to),
+    state: () => `${event.from ?? "?"} → ${event.to}`,
+    sprint: () => t("evSprint")(event.from ?? "-", event.to ?? "-"),
+    assigned: () => t("evAssigned")(event.to),
+    prCreated: () => t("evPrCreated")(event.pr),
+    prMerged: () => t("evPrMerged")(event.pr),
+    prAbandoned: () => t("evPrAbandoned")(event.pr),
+    session: () => t("evSession"),
+  })[event.type]();
+  return `<div class="timeline">${historyEvents(item).map(event => `<span class="when">${shortDateTime(event.date)}</span><span>${icon[event.type]}</span>
+    <span${event.type === "state" ? ' class="state-change"' : ""}>${esc(text(event))}${event.by ? ` <span class="muted">· ${esc(event.by)}</span>` : ""}</span>`).join("")}</div>`;
+}
+
+function itemCard(item) {
+  const [status, reason] = itemAction(item);
+  const prs = item.pullRequests.length ? item.pullRequests.map(prBlock).join("") : `<div class="pr muted">${esc(t("noPr"))}</div>`;
+  const activity = latest(item.changedDate, item.lastSession?.startedAt, ...item.pullRequests.map(pr => pr.lastActivity),
+    ...Object.values(item.files ?? {}).map(file => file.updated));
+  const order = item.backlogOrder
+    ? `<span class="order" title="${esc(t("backlogOrderTitle")(item.iteration))}">${item.backlogOrder}</span>` : "";
+  return { status, activity, sprint: item.iterationPath ?? "", order: item.backlogOrder, html: `<div class="card ${status}">${edge(status, reason)}
+    <div class="top">${order}<a class="id" href="${esc(item.url)}" target="_blank">#${item.id}</a><span>${esc(item.type)}</span>
+      <span>${esc(item.iteration)}</span><span style="margin-left:auto" class="badge state">${esc(item.state)}</span></div>
+    <div class="title"><a href="${esc(item.url)}" target="_blank">${esc(item.title)}</a></div>
+    ${stateTrail(item)}
+    <div class="hint muted">${esc(t("changed")(ago(activity)))}${item.tags ? ` · ${esc(item.tags)}` : ""}</div>
+    ${historyTimeline(item)}${statusBlock(item)}${prs}${pbiActions(item)}</div>` };
+}
+
+// Most recent of some ISO dates (missing ones ignored), as an ISO string.
+function latest(...dates) {
+  const times = dates.filter(Boolean).map(date => new Date(date).getTime());
+  return times.length ? new Date(Math.max(...times)).toISOString() : null;
+}
+
+// Order of my PBIs (code reviews stay by activity), picked next to their title and kept in localStorage: by last activity, most recent first (work item change,
+// PR thread or push, PBI working file, review file, session), or by status (to do, in progress, waiting, done), then activity.
+const storedSort = () => { try { return localStorage.getItem("dashboard.sort"); } catch { return null; } };
+// The backlog order follows the team's sprint backlog: sprint by sprint, each in its "Order" column, PBIs without one last.
+let sortOrder = ["status", "backlog"].includes(storedSort()) ? storedSort() : "activity";
+const byActivity = (a, b) => (b.activity ?? "").localeCompare(a.activity ?? "");
+const byStatus = (a, b) => rank[a.status] - rank[b.status] || byActivity(a, b);
+const byBacklog = (a, b) => (!a.order - !b.order) || a.sprint.localeCompare(b.sprint, undefined, { numeric: true })
+  || (a.order ?? 0) - (b.order ?? 0) || byActivity(a, b);
+
+function fill(id, cards, empty) {
+  cards.sort(id !== "items" ? byActivity : sortOrder === "status" ? byStatus : sortOrder === "backlog" ? byBacklog : byActivity);
+  document.getElementById(id).innerHTML = cards.length ? cards.map(c => c.html).join("") : `<div class="empty">${esc(empty)}</div>`;
+  return cards;
+}
+
+// Draws the cards of the last data; called after each refresh and when the language changes.
+// Sprint filter on my PBIs: chips with the number of PBIs per sprint, several can be on. An empty selection means all
+// sprints. It starts on the current sprint and is kept in localStorage; a sprint that no longer has PBIs drops out.
+let selectedSprints = null;
+const sprintOf = item => item.iterationPath?.includes("\\") ? item.iterationPath : "";
+const sprintLabel = path => path ? path.split("\\").pop() : t("noSprint");
+
+function sprintsFilter() {
+  const counts = new Map();
+  lastData.workItems.forEach(item => counts.set(sprintOf(item), (counts.get(sprintOf(item)) ?? 0) + 1));
+  const sprints = [...counts.keys()].sort((a, b) => (a === "") - (b === "") || a.localeCompare(b, undefined, { numeric: true }));
+  if (selectedSprints === null) {
+    let stored = null;
+    try { stored = JSON.parse(localStorage.getItem("dashboard.sprints")); } catch { }
+    const current = lastData.currentSprint?.path;
+    selectedSprints = new Set(Array.isArray(stored) ? stored : counts.has(current) ? [current] : []);
+  }
+  selectedSprints.forEach(path => { if (!counts.has(path)) selectedSprints.delete(path); });
+
+  const current = lastData.currentSprint?.path;
+  const chip = (value, label, count, on, title) =>
+    `<button data-sprint="${esc(value)}" class="${on ? "on" : ""}"${title ? ` title="${esc(title)}"` : ""}>${esc(label)}<span class="count">${count}</span></button>`;
+  const shown = lastData.workItems.filter(item => !selectedSprints.size || selectedSprints.has(sprintOf(item)));
+  document.getElementById("sprints").innerHTML =
+    chip("*", t("allSprints"), lastData.workItems.length, !selectedSprints.size)
+    + sprints.map(path => chip(path, (path === current ? "● " : "") + sprintLabel(path), counts.get(path),
+        selectedSprints.has(path), path === current ? t("currentSprint") : path)).join("")
+    + (selectedSprints.size ? `<span class="summary">${esc(t("sprintSummary")(selectedSprints.size, shown.length))}</span>` : "");
+  return shown;
+}
+
+function toggleSprint(value) {
+  if (value === "*") selectedSprints.clear();
+  else if (selectedSprints.has(value)) selectedSprints.delete(value);
+  else selectedSprints.add(value);
+  try { localStorage.setItem("dashboard.sprints", JSON.stringify([...selectedSprints])); } catch { }
+  render();
+}
+
+function render() {
+  if (!lastData) return;
+  registerDocuments();
+  const items = sprintsFilter();
+  const all = [...fill("reviews", lastData.reviews.map(reviewCard), t("emptyReviews")),
+               ...fill("items", items.map(itemCard), t(lastData.workItems.length ? "emptyFilter" : "emptyItems"))];
+  const count = s => all.filter(c => c.status === s).length;
+  // The counters double as the legend of the cards' colored edge.
+  document.getElementById("counts").title = t("legendTitle");
+  document.getElementById("counts").innerHTML = [["TODO", "todo"], ["WIP", "wip"], ["WAIT", "wait"], ["OK", "done"]]
+    .map(([status, label]) => `<span class="legend ${status}" title="${esc(t("statusHelp")[status])}"><i></i>${esc(t(label)(count(status)))}</span>`)
+    .join("");
+  todoCount = count("TODO");
+  updateTabIcon();
+}
+
+// Tab icon and title: a checklist, with a badge of the cards to do when there are some ("(3) Today").
+let todoCount = 0;
+function updateTabIcon() {
+  const label = todoCount > 99 ? "99+" : String(todoCount);
+  const badge = todoCount
+    ? `<circle cx='23' cy='23' r='9' fill='#D85A30'/><text x='23' y='27' text-anchor='middle' font-size='${label.length > 1 ? 9 : 12}' font-weight='700' fill='white' font-family='Segoe UI, sans-serif'>${label}</text>`
+    : "<path d='M17 11h7M17 20h7' stroke='#B5D4F4' stroke-width='2.4' stroke-linecap='round'/>";
+  const svg = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='3' y='3' width='26' height='26' rx='6' fill='#185FA5'/>"
+    + "<path d='M8 11l2 2 4-4M8 20l2 2 4-4' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/>"
+    + badge + "</svg>";
+  document.getElementById("favicon").href = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+  document.title = (todoCount ? `(${label}) ` : "") + t("title");
+}
+
+// Static texts (data-i18n, data-i18n-title) and the date in the header.
+function translatePage() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach(element => element.textContent = t(element.dataset.i18n));
+  document.querySelectorAll("[data-i18n-title]").forEach(element => element.title = t(element.dataset.i18nTitle));
+  updateReviewPlaceholder();
+  updateDailyTab();
+  updateTabIcon();
+  document.getElementById("today").textContent =
+    new Date().toLocaleDateString(t("locale"), { weekday: "long", day: "numeric", month: "long" }).replace(/^./, c => c.toUpperCase());
+  document.getElementById("lang").value = lang;
+  document.getElementById("sort").value = sortOrder;
+}
+
+async function load() {
+  if (loading) return;
+  loading = true;
+  const main = document.querySelector("main");
+  main.classList.add("loading");
+  document.getElementById("updated").innerHTML = `<span class="spinner"></span> ${esc(t("updating"))}`;
+  const error = document.getElementById("error");
+  try {
+    const response = await fetch("/api/today");
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || response.statusText);
+    lastData = data;
+    render();
+    document.getElementById("updated").dataset.at = data.generatedAt;
+    error.style.display = "none";
+  } catch (e) {
+    error.textContent = t("refreshFailed")(e.message);
+    error.style.display = "block";
+  } finally {
+    loading = false;
+    main.classList.remove("loading");
+    nextRefresh = Date.now() + refreshSeconds * 1000;
+  }
+}
+
+function tick() {
+  const updated = document.getElementById("updated");
+  const at = updated.dataset.at ? new Date(updated.dataset.at).toLocaleTimeString(t("locale"), { hour: "2-digit", minute: "2-digit" }) : "-";
+  const left = Math.max(0, Math.round((nextRefresh - Date.now()) / 1000));
+  const next = left >= 60 ? `${Math.ceil(left / 60)} min` : `${left} s`;
+  if (!loading) updated.textContent = t("updated")(at, next);
+  if (!loading && Date.now() >= nextRefresh) load();
+}
+
+document.getElementById("sort").onchange = event => {
+  sortOrder = event.target.value;
+  try { localStorage.setItem("dashboard.sort", sortOrder); } catch { }
+  render();
+};
+document.getElementById("lang").onchange = event => {
+  lang = event.target.value;
+  try { localStorage.setItem("dashboard.lang", lang); } catch { }
+  translatePage();
+  render();
+  if (!loading) tick();
+};
+document.getElementById("refresh").onclick = () => activeTab === "daily" ? loadDaily(true) : load();
+
+// Daily tab: what I did on the previous working day (Friday on a Monday), from /api/daily, for the daily meeting.
+// ‹ › move one working day; a day is loaded once, the refresh button reloads it.
+let activeTab = "today", dailyDay = null, dailyData = null;
+const isoDay = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+function stepWorkingDay(date, step) {
+  const next = new Date(date);
+  do next.setDate(next.getDate() + step); while (next.getDay() === 0 || next.getDay() === 6);
+  return next;
+}
+const dayLabel = date => date.toLocaleDateString(t("locale"), { weekday: "long", day: "numeric", month: "long" }).replace(/^./, c => c.toUpperCase());
+
+// The tab says "Yesterday", or the day's name when the previous working day is further back (Friday on a Monday).
+function updateDailyTab() {
+  const previous = stepWorkingDay(new Date(), -1);
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const name = isoDay(previous) === isoDay(yesterday) ? t("yesterday") : previous.toLocaleDateString(t("locale"), { weekday: "long" });
+  document.getElementById("dailyTab").textContent = t("dailyTab")(name);
+  if (dailyDay) {
+    document.getElementById("dailyTitle").textContent = t("dailyTitle")(dayLabel(dailyDay));
+    renderDaily();
+  }
+}
+
+async function loadDaily(force = false) {
+  dailyDay ??= stepWorkingDay(new Date(), -1);
+  document.getElementById("dailyTitle").textContent = t("dailyTitle")(dayLabel(dailyDay));
+  if (!force && dailyData?.day === isoDay(dailyDay)) return renderDaily();
+  document.getElementById("dailySpinner").style.display = "inline-block";
+  try {
+    const response = await fetch(`/api/daily?day=${isoDay(dailyDay)}`);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || response.statusText);
+    dailyData = data;
+    document.getElementById("error").style.display = "none";
+  } catch (e) {
+    const error = document.getElementById("error");
+    error.textContent = t("refreshFailed")(e.message);
+    error.style.display = "block";
+  } finally {
+    document.getElementById("dailySpinner").style.display = "none";
+  }
+  renderDaily();
+}
+
+function renderDaily() {
+  showSummary();
+  const container = document.getElementById("daily");
+  if (!dailyData || dailyData.day !== isoDay(dailyDay)) { container.innerHTML = ""; return; }
+  if (!dailyData.groups.length) { container.innerHTML = `<div class="empty">${esc(t("dailyEmpty"))}</div>`; return; }
+  const icons = { state: "➜", sprint: "📅", assigned: "👤", edit: "✏️", comment: "💬", created: "🔀", merged: "✅", abandoned: "🚫",
+                  thread: "💬", reply: "↩", vote: "👍", commit: "🔨", file: "📄", report: "📝", session: "🤖" };
+  const text = event => event.kind === "vote" ? `${t("votes")[event.text] ?? event.text}` : event.text;
+  container.innerHTML = dailyData.groups.map(group => `<div class="card daily-group">
+      <div class="top">${group.backlogOrder ? `<span class="order" title="${esc(t("backlogOrderTitle")(group.iteration ?? ""))}">${group.backlogOrder}</span>` : ""}
+        <a class="id" href="${esc(group.url ?? "#")}" target="_blank">${group.type === "pr" ? "PR " : "#"}${group.id}</a>
+        ${group.type === "pr" && group.author ? `<span>${esc(group.isMine ? t("myPr") : t("prBy")(group.author))}</span>` : ""}
+        ${(group.workItems ?? []).map(w => `<span>${w.backlogOrder ? `<span class="order" title="${esc(t("backlogOrderTitle")(w.iteration ?? ""))}">${w.backlogOrder}</span> ` : ""}#${w.id}</span>`).join("")}
+        ${group.iteration ? `<span>${esc(group.iteration)}</span>` : ""}
+        <span class="muted">${esc(t("dailyCount")(group.events.length))}</span></div>
+      <div class="title">${esc(group.title ?? "")}</div>
+      <div class="daily-events">${group.events.map(event => `<span class="when">${new Date(event.time).toLocaleTimeString(t("locale"), { hour: "2-digit", minute: "2-digit" })}</span>
+        <span>${icons[event.kind] ?? "•"}</span><span><b>${esc(t("dailyKinds")[event.kind] ?? event.kind)}</b> ${esc(text(event))}</span>`).join("")}</div>
+    </div>`).join("");
+}
+
+function showTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll(".tabs button").forEach(button => button.classList.toggle("on", button.dataset.tab === tab));
+  document.getElementById("todayView").hidden = tab !== "today";
+  document.getElementById("dailyView").hidden = tab !== "daily";
+  if (tab === "daily") loadDaily();
+}
+document.querySelectorAll(".tabs button").forEach(button => button.onclick = () => showTab(button.dataset.tab));
+
+// AI summary of the shown day (POST /api/daily-summary, claude -p on the server), kept per day and language.
+const summaries = new Map();
+function showSummary() {
+  const box = document.getElementById("dailySummary");
+  const summary = dailyDay && summaries.get(`${isoDay(dailyDay)}:${lang}`);
+  box.hidden = !summary;
+  if (summary) box.innerHTML = `<div class="head">${esc(t("aiSummaryHead"))}</div>${markdown(summary)}`;
+}
+document.getElementById("dailySummaryButton").onclick = async event => {
+  const button = event.currentTarget, box = document.getElementById("dailySummary"), key = `${isoDay(dailyDay)}:${lang}`;
+  button.disabled = true;
+  box.hidden = false;
+  box.innerHTML = `<div class="head"><span class="spinner"></span> ${esc(t("aiSummaryRunning"))}</div>`;
+  try {
+    const response = await fetch(`/api/daily-summary?day=${isoDay(dailyDay)}&lang=${lang}`, { method: "POST", headers: { "X-Dashboard": "1" } });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || response.statusText);
+    summaries.set(key, data.summary);
+    showSummary();
+  } catch (e) {
+    box.innerHTML = `<div class="head blocked">${esc(t("aiSummaryFailed")(e.message))}</div>`;
+  } finally {
+    button.disabled = false;
+  }
+};
+document.querySelectorAll("[data-day-step]").forEach(button => button.onclick = () => {
+  dailyDay = stepWorkingDay(dailyDay, Number(button.dataset.dayStep));
+  loadDaily();
+});
+// Review of any PBI or pull request typed in the box, picked by the PBI / PR selector. "#249499" means a PBI and
+// "!55769" or "PR 55769" a pull request, whatever the selector says. Anything else is refused before calling the server.
+const reviewKind = () => document.getElementById("reviewKind").value;
+const updateReviewPlaceholder = () =>
+  document.getElementById("pbiReviewId").placeholder = t(reviewKind() === "pr" ? "prReviewPlaceholder" : "pbiReviewPlaceholder");
+const clearReviewError = () => {
+  document.getElementById("pbiReviewId").classList.remove("invalid");
+  const note = document.getElementById("pbiReviewError");
+  note.textContent = note.title = "";
+  note.classList.remove("ok");
+};
+document.getElementById("pbiReview").onsubmit = event => {
+  event.preventDefault();
+  const input = document.getElementById("pbiReviewId");
+  let value = input.value.trim(), kind = reviewKind();
+  if (/^#/.test(value)) { kind = "pbi"; value = value.slice(1); }
+  else if (/^(!|pr\s*)/i.test(value)) { kind = "pr"; value = value.replace(/^(!|pr\s*)/i, ""); }
+  document.getElementById("reviewKind").value = kind;
+  const valid = /^\d{1,9}$/.test(value) && Number(value) > 0;
+  input.classList.toggle("invalid", !valid);
+  clearReviewError();
+  input.classList.toggle("invalid", !valid);
+  document.getElementById("pbiReviewError").textContent = valid ? "" : t(kind === "pr" ? "prReviewInvalid" : "pbiReviewInvalid");
+  const button = document.getElementById("pbiReviewButton");
+  if (!valid || button.disabled) return;
+  if (kind !== "pr") { openClaude(button, `pbi-review/${Number(value)}`); return; }
+  // A typed PR: the server first adds me as an optional reviewer, then the PR shows in my code reviews.
+  openClaude(button, `review/${Number(value)}`, "&addReviewer=1").then(result => {
+    const note = document.getElementById("pbiReviewError");
+    note.classList.toggle("ok", result?.reviewer !== "failed");
+    note.textContent = result?.reviewer ? t("reviewerOutcome")[result.reviewer] : "";
+    if (result?.reviewer === "failed") note.title = result.detail ?? "";
+    if (result?.reviewer === "added") load();
+  });
+};
+document.getElementById("pbiReviewId").oninput = clearReviewError;
+document.getElementById("reviewKind").onchange = () => { clearReviewError(); updateReviewPlaceholder(); };
+document.addEventListener("click", e => {
+  const doc = e.target.closest("[data-doc]");
+  if (doc) openDocument(doc.dataset.doc);
+  const conversation = e.target.closest("[data-conversations]");
+  if (conversation) openConversations(conversation.dataset.conversations);
+  const claude = e.target.closest("[data-claude]");
+  if (claude && !claude.disabled) openClaude(claude);
+  const sprint = e.target.closest("[data-sprint]");
+  if (sprint) toggleSprint(sprint.dataset.sprint);
+  const verdictFold = e.target.closest("[data-verdict-toggle]");
+  if (verdictFold) {
+    const id = Number(verdictFold.dataset.verdictToggle);
+    openVerdicts.has(id) ? openVerdicts.delete(id) : openVerdicts.add(id);
+    render();
+  }
+  const fold = e.target.closest("[data-status-toggle]");
+  if (fold) {
+    const id = Number(fold.dataset.statusToggle);
+    openStatuses.has(id) ? openStatuses.delete(id) : openStatuses.add(id);
+    render();
+  }
+  const history = e.target.closest("[data-history]");
+  if (history) {
+    const id = Number(history.dataset.history);
+    openHistories.has(id) ? openHistories.delete(id) : openHistories.add(id);
+    render();
+  }
+});
+document.getElementById("reviewClose").onclick = () => document.getElementById("reviewDialog").close();
+translatePage();
+load();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>

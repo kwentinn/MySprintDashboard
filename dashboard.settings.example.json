@@ -1,0 +1,7 @@
+{
+  "organization": "https://dev.azure.com/my-organization",
+  "project": "MyProject",
+  "team": "My Team",
+  "vault": "C:\\Users\\me\\Documents\\obsidian\\my-vault\\MyProject",
+  "patVariable": "AZURE_DEVOPS_PAT"
+}
