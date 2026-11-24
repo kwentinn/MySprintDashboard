@@ -121,6 +121,14 @@ app.MapPost("/api/sessions/{kind}/{id:int}", async (HttpRequest request, string 
             OpenClaudeTab($"{(reviewKind == "review" ? "Review" : "Threads")} PR {id}", $"--resume {lastReview["sessionId"]}",
                 (string?)lastReview["cwd"]);
             return Results.NoContent();
+        // The French copy of a review or of a thread analysis that only exists in English.
+        case "review-translate" or "threads-translate":
+            var reportName = $"{id}-{kind.Replace("-translate", "")}";
+            if (!File.Exists(Path.Combine(ReviewDirectory(), reportName + ".md"))) return Results.NotFound();
+            var translateSession = RecordReviewSession(id, kind);
+            OpenClaudeTab($"Translate {reportName}",
+                $"--session-id {translateSession} {PowerShellQuote(TranslatePrompt(ReviewDirectory(), reportName, translateSession))}");
+            return Results.NoContent();
         case "pbi-review":
             var reviewSession = RecordSession(id, "review");
             OpenClaudeTab($"Review PBI {id}", $"--session-id {reviewSession} {PowerShellQuote(PbiReviewPrompt(id, reviewSession, language))}");
@@ -128,6 +136,15 @@ app.MapPost("/api/sessions/{kind}/{id:int}", async (HttpRequest request, string 
         case "pbi":
             var workSession = RecordSession(id, "work");
             OpenClaudeTab($"PBI {id}", $"--session-id {workSession} {PowerShellQuote(PbiPrompt(id, workSession, language))}");
+            return Results.NoContent();
+        // One step of a PBI (?step=03-job-done), from its tab in the PBI page: do it again, or write its French copy.
+        case "step" or "translate":
+            var step = (string?)request.Query["step"] ?? "";
+            if (!StepTasks.ContainsKey(step)) return Results.BadRequest();
+            if (kind == "translate" && !File.Exists(Path.Combine(PbiDirectory(id), step + ".md"))) return Results.NotFound();
+            var stepSession = RecordSession(id, kind);
+            OpenClaudeTab($"PBI {id} {step}", $"--session-id {stepSession} {PowerShellQuote(kind == "step"
+                ? StepPrompt(id, step, stepSession, language) : TranslatePrompt(PbiDirectory(id), step, stepSession))}");
             return Results.NoContent();
         case "resume":
             if (LastSession(id) is not { } last) return Results.NotFound();
@@ -670,6 +687,9 @@ JsonObject WorkItemCard(JsonNode item)
         ["iteration"] = ((string?)fields["System.IterationPath"])?.Split('\\').Last(),
         ["iterationPath"] = (string?)fields["System.IterationPath"],
         ["tags"] = (string?)fields["System.Tags"],
+        // HTML written in Azure DevOps: the page sanitizes it before showing it.
+        ["description"] = (string?)fields["System.Description"],
+        ["acceptanceCriteria"] = (string?)fields["Microsoft.VSTS.Common.AcceptanceCriteria"],
         ["changedDate"] = (string?)fields["System.ChangedDate"],
         ["url"] = $"{Organization}/{Project}/_workitems/edit/{id}",
         ["files"] = PbiFiles(id),
@@ -720,6 +740,7 @@ async Task<JsonObject> PullRequestAsync(int id)
     {
         ["id"] = id,
         ["title"] = (string?)pr["title"],
+        ["description"] = (string?)pr["description"],
         ["repository"] = repository,
         ["repositoryId"] = repositoryId,
         ["status"] = status,
@@ -956,6 +977,18 @@ static string PbiPrompt(int workItemId, string sessionId, string language) =>
         "if there are questions. Later steps go to 03-job-done.md, 04-ai-review.md, 05-test-instructions.md and " +
         "07-pr-description.md");
 
+// One step of a PBI done again from its tab: the step is the working file to write, StepTasks says what it takes.
+static string StepPrompt(int workItemId, string step, string sessionId, string language) =>
+    $"Work on the step {step} of PBI #{workItemId} on Azure DevOps (organization {OrganizationName}, project {Project}): read the " +
+    $"PBI and the working files already in {PbiDirectory(workItemId)}, then {StepTasks[step]} " +
+    PbiFilesInstruction(workItemId, sessionId, language, $"write {step}.md and update 00-status.md");
+
+// The French copy of a working file or of a report that only exists in English.
+static string TranslatePrompt(string directory, string name, string sessionId) =>
+    $"Write the French copy of {Path.Combine(directory, name + ".md")} next to it, as {name}.fr.md: same " +
+    $"structure, translated to French, with the same frontmatter where this session ({sessionId}) is added. Do not change " +
+    "the English file or any other file. Answer me in French.";
+
 // Where a PBI session writes: the "PBI working files" rule of the workspace CLAUDE.md, in <vault>/PBIs/pbi-<id>/.
 static string PbiFilesInstruction(int workItemId, string sessionId, string language, string steps) =>
     $"Follow the PBI working files rule of CLAUDE.md in {PbiDirectory(workItemId)} (this session is {sessionId}, name it " +
@@ -996,6 +1029,18 @@ static string SourceDirectory([CallerFilePath] string path = "") => Path.GetDire
 // and optionally the workspace (the folder of the checkouts, the parent of dashboard\ by default).
 static class Settings
 {
+    // What doing each step of a PBI again takes (the steps a tab of the PBI page can start), for StepPrompt. No ';'.
+    public static readonly Dictionary<string, string> StepTasks = new()
+    {
+        ["01-summary"] = "sum up what the PBI asks: goal, acceptance criteria, scope and what is out of scope.",
+        ["02-analysis"] = "analyze what has to change and how: code areas, contract, options with their trade-offs, and the plan. Do not write code.",
+        ["03-job-done"] = "carry out the plan of 02-analysis.md: tell me what you are about to change and wait for my approval before writing code, then record the work done.",
+        ["04-ai-review"] = "review the changes of its pull requests against what the PBI asks, in the format of the reports of the vault. Do not post any comment and do not vote.",
+        ["05-test-instructions"] = "write how to test it: endpoints with sample payloads, which account, environment and expected results.",
+        ["06-open-questions"] = "list the questions for the PO or the team, one entry per question, keeping the ones already there with their answers. Do not post them.",
+        ["07-pr-description"] = "write a pull request description ready to paste in Azure DevOps.",
+    };
+
     public static string Organization { get; private set; } = "";
     public static string OrganizationName => Organization.TrimEnd('/').Split('/').Last();
     public static string Project { get; private set; } = "";
