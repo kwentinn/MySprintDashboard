@@ -16,6 +16,7 @@ using System.Net.Http.Headers;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json.Nodes;
+using static Prompts;
 using static Settings;
 
 const string ApiVersion = "api-version=7.1";
@@ -869,8 +870,9 @@ static string RecordSession(int workItemId, string kind)
     return sessionId;
 }
 
-// The last Claude session started from the dashboard for a PBI (one JSON object per line in its sessions.jsonl).
-static JsonObject? LastSession(int workItemId) => Sessions(workItemId).LastOrDefault();
+// The last Claude session started from the dashboard for a PBI (one JSON object per line in its sessions.jsonl), the
+// one "Resume session" reopens. A session that only wrote a French copy is not one to resume.
+static JsonObject? LastSession(int workItemId) => Sessions(workItemId).LastOrDefault(session => (string?)session["kind"] != "translate");
 
 // All the sessions started from the dashboard for a PBI, oldest first.
 static List<JsonObject> Sessions(int workItemId)
@@ -1023,13 +1025,10 @@ static string? FirstName(string? displayName) => displayName?.Split(' ', StringS
 
 static string SourceDirectory([CallerFilePath] string path = "") => Path.GetDirectoryName(path)!;
 
-// Settings of this machine, from dashboard.settings.json next to dashboard.cs (not committed; see
-// dashboard.settings.example.json): the Azure DevOps organization URL, project and team (whose sprint backlog gives
-// the PBIs' order), the vault folder of the PBI working files and reviews, the environment variable holding the PAT,
-// and optionally the workspace (the folder of the checkouts, the parent of dashboard\ by default).
-static class Settings
+// Prompt texts that are data: what doing each step of a PBI again takes (the steps a tab of the PBI page can start),
+// for StepPrompt. No ';' in them.
+static class Prompts
 {
-    // What doing each step of a PBI again takes (the steps a tab of the PBI page can start), for StepPrompt. No ';'.
     public static readonly Dictionary<string, string> StepTasks = new()
     {
         ["01-summary"] = "sum up what the PBI asks: goal, acceptance criteria, scope and what is out of scope.",
@@ -1040,7 +1039,14 @@ static class Settings
         ["06-open-questions"] = "list the questions for the PO or the team, one entry per question, keeping the ones already there with their answers. Do not post them.",
         ["07-pr-description"] = "write a pull request description ready to paste in Azure DevOps.",
     };
+}
 
+// Settings of this machine, from dashboard.settings.json next to dashboard.cs (not committed; see
+// dashboard.settings.example.json): the Azure DevOps organization URL, project and team (whose sprint backlog gives
+// the PBIs' order), the vault folder of the PBI working files and reviews, the environment variable holding the PAT,
+// and optionally the workspace (the folder of the checkouts, the parent of dashboard\ by default).
+static class Settings
+{
     public static string Organization { get; private set; } = "";
     public static string OrganizationName => Organization.TrimEnd('/').Split('/').Last();
     public static string Project { get; private set; } = "";

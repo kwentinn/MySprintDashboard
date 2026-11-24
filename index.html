@@ -239,7 +239,7 @@
 const s = n => n > 1 ? "s" : "";
 const texts = {
   fr: {
-    locale: "fr-FR", day: "j", title: "Aujourd'hui", since: age => `il y a ${age}`, me: "moi",
+    locale: "fr-FR", day: "j", title: "Aujourd'hui", since: age => `il y a ${age}`,
     loading: "Chargement...", refreshNow: "Rafraîchir maintenant", close: "Fermer", details: "Détails",
     reviewsTitle: "Relectures de code", itemsTitle: "Mes PBIs", loadingPrs: "Chargement des PRs...", loadingPbis: "Chargement des PBIs...",
     emptyReviews: "Aucune PR à relire.", emptyItems: "Aucun PBI ouvert.",
@@ -262,6 +262,7 @@ const texts = {
     readyToMerge: "approuvée, prête à fusionner", waitingReviewers: "en attente des relecteurs",
     toReview: "à relire", waitingAuthor: "en attente de l'auteur", approvedByMe: "approuvée par moi",
     votes: { 10: "a approuvé", 5: "a approuvé avec suggestions", 0: "n'a pas voté", "-5": "attend l'auteur", "-10": "a rejeté" },
+    myVotes: { 10: "j'ai approuvé", 5: "j'ai approuvé avec suggestions", 0: "je n'ai pas encore voté", "-5": "j'attends l'auteur", "-10": "j'ai rejeté" },
     votesLabel: "Votes :", noReviewer: "aucun relecteur", conflictsBadge: "conflits", draftBadge: "brouillon",
     readMyReview: "Lire ma relecture",
     noWorkItem: "Aucun work item lié", linkedItems: "Work items :",
@@ -318,7 +319,7 @@ const texts = {
     pbiNotFound: id => `Le PBI #${id} n'est pas dans mes PBIs ouverts.`,
   },
   en: {
-    locale: "en-GB", day: "d", title: "Today", since: age => `${age} ago`, me: "me",
+    locale: "en-GB", day: "d", title: "Today", since: age => `${age} ago`,
     loading: "Loading...", refreshNow: "Refresh now", close: "Close", details: "Details",
     reviewsTitle: "Code reviews", itemsTitle: "My PBIs", loadingPrs: "Loading pull requests...", loadingPbis: "Loading PBIs...",
     emptyReviews: "No pull request to review.", emptyItems: "No open PBI.",
@@ -341,6 +342,7 @@ const texts = {
     readyToMerge: "approved, ready to merge", waitingReviewers: "waiting for reviewers",
     toReview: "to review", waitingAuthor: "waiting for the author", approvedByMe: "approved by me",
     votes: { 10: "approved", 5: "approved with suggestions", 0: "has not voted", "-5": "waits for the author", "-10": "rejected" },
+    myVotes: { 10: "I approved", 5: "I approved with suggestions", 0: "I have not voted yet", "-5": "I wait for the author", "-10": "I rejected" },
     votesLabel: "Votes:", noReviewer: "no reviewer", conflictsBadge: "conflicts", draftBadge: "draft",
     readMyReview: "Read my review",
     noWorkItem: "No linked work item", linkedItems: "Work items:",
@@ -458,8 +460,9 @@ const documents = new Map();
 const markdown = text => window.marked && window.DOMPurify
   ? DOMPurify.sanitize(marked.parse(text), { ADD_ATTR: ["target"] })
   : `<pre>${esc(text)}</pre>`;
-// HTML written in Azure DevOps (a PBI's description): sanitized, or its text alone if the CDN is unreachable.
-const safeHtml = html => window.DOMPurify ? DOMPurify.sanitize(html) : esc(html.replace(/<[^>]+>/g, " "));
+// HTML written in Azure DevOps (a PBI's description): sanitized, or its text alone if the CDN is unreachable. Its
+// inline styles go too: colors pasted into Azure DevOps would fight the page's theme (black text in dark mode).
+const safeHtml = html => window.DOMPurify ? DOMPurify.sanitize(html, { FORBID_ATTR: ["style"] }) : esc(html.replace(/<[^>]+>/g, " "));
 const section = (text, name) => {
   const match = text.match(new RegExp(`^##\\s+${name}\\s*$([\\s\\S]*?)(?=^##\\s|(?![\\s\\S]))`, "m"));
   return match ? match[1].trim() : "";
@@ -531,10 +534,13 @@ const ciHtml = pr => {
   const text = esc(t("ci")[pr.ci.status] ?? `CI ${pr.ci.status}`);
   return pr.ci.buildUrl ? `<a href="${esc(pr.ci.buildUrl)}" target="_blank">${text}</a>` : text;
 };
-const signals = pr => [pr.mergeStatus === "conflicts" && esc(t("conflictsBadge")), pr.isDraft && esc(t("draftBadge")),
-  esc(cap(threadsText(pr))), ciHtml(pr)].filter(Boolean).join(" · ");
+const signals = pr => {
+  const parts = [pr.mergeStatus === "conflicts" && t("conflictsBadge"), pr.isDraft && t("draftBadge"), threadsText(pr)].filter(Boolean);
+  // The capital goes to the first word of the sentence, whichever part it is.
+  return [...parts.map((text, index) => esc(index ? text : cap(text))), ciHtml(pr)].filter(Boolean).join(" · ");
+};
 const votesText = pr => pr.reviewers.length
-  ? pr.reviewers.map(r => `${r.isMe ? `<b>${esc(t("me"))}</b>` : esc(r.name)} ${esc(t("votes")[r.vote] ?? r.vote)}`).join(" · ")
+  ? pr.reviewers.map(r => r.isMe ? `<b>${esc(t("myVotes")[r.vote] ?? r.vote)}</b>` : `${esc(r.name)} ${esc(t("votes")[r.vote] ?? r.vote)}`).join(" · ")
   : esc(t("noReviewer"));
 
 // Button that opens a Claude session in a new Windows Terminal tab (POST /api/sessions/<kind>/<id>).
@@ -547,7 +553,7 @@ const threadsButton = (pr, cls) => pr.openThreads > 0
 const sessionDate = session => new Date(session.startedAt).toLocaleString(t("locale"), { dateStyle: "short", timeStyle: "short" });
 const resumeReviewButton = (pr, cls) => pr.reviewSession
   && claudeButton("review-resume", pr.id, "claudeResumeReview", t("claudeResumeTitle")(sessionDate(pr.reviewSession)), cls);
-const resumeThreadsButton = (pr, cls) => pr.threadsSession && pr.openThreads > 0
+const resumeThreadsButton = (pr, cls) => pr.threadsSession
   && claudeButton("threads-resume", pr.id, "claudeResumeThreads", t("claudeResumeTitle")(sessionDate(pr.threadsSession)), cls);
 // The main action of a PBI: resume its last session, else start one (not once it is Implemented).
 const implemented = item => /^implemented$/i.test(item.state);
@@ -708,8 +714,9 @@ let pbiRoute = null, descOpen = false;
 let docLang = null;
 
 function renderPbi() {
-  if (!pbiRoute || !lastData) return;
+  if (!pbiRoute) return;
   const view = document.getElementById("pbiView");
+  if (!lastData) { view.innerHTML = pagePlaceholder(); return; }
   const item = lastData.workItems.find(workItem => workItem.id === pbiRoute.id);
   if (!item) { view.innerHTML = `<div>${backLink()}</div><div class="empty">${esc(t("pbiNotFound")(pbiRoute.id))}</div>`; return; }
 
@@ -733,7 +740,7 @@ function renderPbi() {
   view.innerHTML = `<div class="links">${backLink()}<a href="${esc(item.url)}" target="_blank" style="margin-left:auto">${esc(t("openInAdo"))}</a></div>
     <div class="pbi-head">
       <div class="row-meta">${orderPill(item.backlogOrder, item.iteration)}${pill(status, t("statusNames")[status])}
-        <span>${[`#${item.id}`, item.type, item.iteration, item.state, t("lastActivity")(ago(itemActivity(item)))].filter(Boolean).map(esc).join(" · ")}</span></div>
+        <span>${[`#${item.id}`, item.type, item.iteration, item.state, item.tags, t("lastActivity")(ago(itemActivity(item)))].filter(Boolean).map(esc).join(" · ")}</span></div>
       <h1>${esc(item.title)}</h1>
     </div>
     ${description ? `<div class="desc-block"><div class="label">${esc(t("description"))}</div>
@@ -786,8 +793,9 @@ function stepPanel(item, step) {
 let prRoute = null;
 
 function renderPr() {
-  if (!prRoute || !lastData) return;
+  if (!prRoute) return;
   const view = document.getElementById("prView");
+  if (!lastData) { view.innerHTML = pagePlaceholder(); return; }
   const pr = [...lastData.reviews, ...lastData.workItems.flatMap(item => item.pullRequests)].find(candidate => candidate.id === prRoute.id);
   if (!pr) { view.innerHTML = `<div>${backLink()}</div><div class="empty">${esc(t("prNotFound")(prRoute.id))}</div>`; return; }
 
@@ -805,10 +813,12 @@ function renderPr() {
     .map(w => `${orderPill(w.backlogOrder, w.iteration)} <a href="${mine.has(w.id) ? `#pbi/${w.id}` : `${esc(w.url)}" target="_blank`}">#${w.id}</a> ${esc(w.state)}`).join(" · ");
   const resolved = (pr.totalThreads ?? 0) - (pr.openThreads ?? 0);
   const review = cls => claudeButton("review", pr.id, "claudeReview", "", cls);
+  // A review is for an active pull request of someone else: not my own, not a merged or abandoned one.
+  const canReview = active && !pr.isMine;
   const panel = tab === "review"
     ? filePanel(pr.review, { translate: claudeButton("review-translate", pr.id, "claudeTranslate", "", "dashed"),
-        action: resumeReviewButton(pr, "") || review(""),
-        missing: { title: t("reviewMissing"), help: t("reviewHelp"), button: review("primary") } })
+        action: resumeReviewButton(pr, "") || (canReview && review("")),
+        missing: { title: t("reviewMissing"), help: canReview ? t("reviewHelp") : "", button: canReview ? review("primary") : "" } })
     : tab === "analysis"
     ? filePanel(pr.threadsReport, { translate: claudeButton("threads-translate", pr.id, "claudeTranslate", "", "dashed"),
         action: resumeThreadsButton(pr, "") || threadsButton(pr, ""),
@@ -842,6 +852,9 @@ function finishPage(view) {
   const desc = view.querySelector(".desc");
   if (desc && !descOpen && desc.scrollHeight <= desc.clientHeight + 2) view.querySelector("[data-desc-toggle]").hidden = true;
 }
+// A PBI or PR page before the first data: the way back, and a spinner while the data loads (if the load failed, the
+// error banner says why).
+const pagePlaceholder = () => `<div>${backLink()}</div>${loading ? `<div class="row placeholder"><span class="spinner"></span>${esc(t("loading"))}</div>` : ""}`;
 const backLink = () => `<a class="link" href="#"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>${esc(t("tabToday"))}</a>`;
 
 // The pull requests of the PBI: what each asks, then its open comment threads whole. Resolved threads are only counted.
@@ -924,6 +937,8 @@ async function load() {
   } finally {
     loading = false;
     main.classList.remove("loading");
+    // A first load that failed leaves an open PBI or PR page without data: stop its spinner.
+    if (!lastData) { renderPbi(); renderPr(); }
     nextRefresh = Date.now() + refreshSeconds * 1000;
   }
 }
@@ -1026,12 +1041,16 @@ function renderDaily() {
 
 // The views share the page: Today, the daily (#daily), one PBI (#pbi/<id>/<tab>) and one pull request
 // (#pr/<id>/<tab>). The address keeps the view, so a reload and the browser's back button work.
-let shownPage = "";
+let shownPage = "", listScroll = 0;
 function route() {
   const [name, id, tab] = location.hash.slice(1).split("/");
   const view = name === "daily" ? "daily" : ["pbi", "pr"].includes(name) && Number(id) ? name : "today";
-  // Another PBI or pull request starts folded, from its top; a tab of the same one stays where it is.
-  if (shownPage !== `${view}/${id}`) { descOpen = false; window.scrollTo(0, 0); }
+  // Another PBI or pull request starts folded, from its top; a tab of the same one stays where it is. Leaving the
+  // list for such a page keeps the place in the list, to come back to it.
+  const isPage = name => name === "pbi" || name === "pr";
+  const changed = shownPage !== `${view}/${id}`, backToList = isPage(activeView) && !isPage(view);
+  if (isPage(view) && !isPage(activeView)) listScroll = window.scrollY;
+  if (changed) descOpen = false;
   shownPage = `${view}/${id}`;
   activeView = view;
   pbiRoute = view === "pbi" ? { id: Number(id), tab } : null;
@@ -1041,6 +1060,8 @@ function route() {
   if (view === "daily") loadDaily();
   renderPbi();
   renderPr();
+  if (changed && isPage(view)) window.scrollTo(0, 0);
+  if (backToList) window.scrollTo(0, listScroll);
 }
 window.onhashchange = route;
 
@@ -1120,8 +1141,8 @@ document.addEventListener("click", e => {
 });
 document.getElementById("reviewClose").onclick = () => document.getElementById("reviewDialog").close();
 translatePage();
-route();
 load();
+route();
 setInterval(tick, 1000);
 </script>
 </body>

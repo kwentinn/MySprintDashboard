@@ -172,7 +172,7 @@ to four lines. Then the buttons that start or resume a Claude session on it, and
 Opened from a PBI row. It works for my open Product Backlog Items and Bugs in the project (state not Done, Removed
 or Closed).
 
-The header shows the backlog order, the status, the id, type, sprint, state and last activity, then the title. The
+The header shows the backlog order, the status, the id, type, sprint, state, tags and last activity, then the title. The
 description written in Azure DevOps follows, with the acceptance criteria, folded to four lines; **Show the whole
 description** unfolds it. Then the **next action**: the `next` of `00-status.md` (or the first line of its text),
 what blocks it or "Nothing blocks", **Read the status** for the whole file, and **Resume session**.
@@ -300,7 +300,7 @@ and the next action of its page; the other files are the step tabs of the page. 
 instruction, nothing enforces it: in a long session, remind it to update the status.
 
 Once a PBI has a recorded session, **Resume session** reopens the last one (`claude --resume <id>`) in a new tab,
-whatever its kind. **Start with Claude** stays on the PBI page, next to it, until the PBI is Implemented. Sessions
+whatever its kind except `translate`: a session that only wrote a French copy is not one to resume. **Start with Claude** stays on the PBI page, next to it, until the PBI is Implemented. Sessions
 started outside the dashboard are not recorded.
 
 The prompts are `ReviewPrompt`, `ThreadsPrompt`, `PbiReviewPrompt`, `PbiPrompt`, `StepPrompt` (with what each step
