@@ -17,7 +17,15 @@ for a PBI (see "What the page shows").
 
 | File | Role |
 | :--- | :--- |
-| `dashboard.cs` | The server. A single-file .NET 10 program (minimal API) that calls the Azure DevOps REST API and serves the page. |
+| `dashboard.csproj` | The server, a .NET 10 program (minimal API) that calls the Azure DevOps REST API and serves the page. Its code is the files below. |
+| `Program.cs` | The start: settings, the Azure DevOps client, and the routes. |
+| `Ado.cs` | Azure DevOps: my PBIs, the pull requests, their threads, votes and CI, the backlog order. |
+| `Daily.cs` | What I did on a day, for the daily tab, and its AI summary. |
+| `VaultStore.cs` | The vault: reports, PBI working files, and the record of the Claude sessions. |
+| `VaultQuestions.cs` | The questions of the vault, read and written (see Questions). |
+| `Claude.cs` | The Claude sessions: the terminal tab that runs one and its prompts. |
+| `Settings.cs` | Reads `dashboard.settings.json`. |
+| `tests/` | The tests of the vault's questions, on a temporary folder (see Tests). |
 | `index.html` | The page. Plain HTML, CSS and JavaScript. It is read again on every request, so you can edit it without restarting the server. |
 | `dashboard.settings.json` | The settings of this machine (not committed): copy `dashboard.settings.example.json` and fill it in (below). |
 | `<vault>/Reviews/<pr>-review.md` | My review notes, shown on the matching pull request when the file exists. |
@@ -54,10 +62,10 @@ Copy `dashboard.settings.example.json` to `dashboard.settings.json` and fill it 
 ## Run
 
 ```powershell
-dotnet run dashboard.cs
+dotnet run
 ```
 
-Then open http://localhost:5099. The first start compiles the program, which takes a few seconds. Stop it with Ctrl+C.
+Run it in this folder. Then open http://localhost:5099. The first start compiles the program, which takes a few seconds. Stop it with Ctrl+C.
 
 The page refreshes every 10 minutes. Use the refresh button to refresh at once, or `?refresh=<seconds>` to change the
 interval (for example http://localhost:5099/?refresh=120).
@@ -68,17 +76,17 @@ To start the dashboard with a double-click, publish it once as a single executab
 runtime) and copy it into this folder, where git ignores it:
 
 ```powershell
-dotnet publish dashboard.cs -o $env:TEMP\dashboard-publish -r win-x64 -p:PublishAot=false -p:PublishSingleFile=true --self-contained false
+dotnet publish dashboard.csproj -o $env:TEMP\dashboard-publish -r win-x64 -p:PublishAot=false -p:PublishSingleFile=true --self-contained false
 Copy-Item $env:TEMP\dashboard-publish\dashboard.exe .
 ```
 
-`.\publish.ps1` does both again after a change of `dashboard.cs`: it publishes, stops the `dashboard.exe` of this
+`.\publish.ps1` does both again after a change of the server's code: it publishes, stops the `dashboard.exe` of this
 folder if it runs (a running executable cannot be replaced), copies the new one and starts it (`-NoStart` leaves it
 stopped). If the build fails, the running dashboard is left alone.
 
 With `index.html` next to it, `dashboard.exe` reads the page and `dashboard.settings.json` from its own folder and
 opens the browser when it starts; here that is this folder, so a change of the page shows at once. Publish again
-after a change of `dashboard.cs`. The executable can live elsewhere with a copy of both files; set `workspace` in
+after a change of the server's code. The executable can live elsewhere with a copy of both files; set `workspace` in
 its settings then, if the folder of the checkouts is not the parent of this repository. Without `index.html` next to
 it, the executable reads both files from this repository, like `dotnet run`, and does not open the browser. The default native (AOT) publish also works, with the Desktop
 Development for C++ workload of Visual Studio installed.
@@ -371,7 +379,7 @@ whatever its kind except `translate`: a session that only wrote a French copy is
 started outside the dashboard are not recorded.
 
 The prompts are `ReviewPrompt`, `ThreadsPrompt`, `PbiReviewPrompt`, `PbiPrompt`, `StepPrompt` (with what each step
-takes in `StepTasks`) and `TranslatePrompt` in `dashboard.cs`, in English; keep `;` out of them, Windows Terminal
+takes in `StepTasks`) and `TranslatePrompt` in `Claude.cs`, in English; keep `;` out of them, Windows Terminal
 reads it as a command separator. The session runs `claude` (npm install) through `pwsh`, so both must be on the
 `PATH` along with `wt.exe`. It is a normal session: permissions are asked as usual. Once a session has written its
 file, the next refresh shows it.
@@ -380,6 +388,18 @@ The page calls `POST /api/sessions/<kind>/<id>`, with `?step=<file name>` for a 
 numeric id and a step name checked against the known ones reach the prompt, never a title read from Azure DevOps. The
 server refuses the call (403) unless the `Origin` is the dashboard itself and the `X-Dashboard: 1` header is present,
 so another site open in the browser cannot start a session.
+
+## Tests
+
+```powershell
+dotnet test tests
+```
+
+The tests cover `VaultQuestions.cs`, the only code that changes files of the vault: what is read from a question
+file (frontmatter, sections, answers), which files count as questions, and what the forms write (a new question
+with its number and its lines in the indexes, a change of state, an answer placed before the notes), plus the
+paths and texts it refuses. Each test works in an empty vault under the temporary folder, never in the real one.
+The rest of the server (Azure DevOps, the daily, the sessions) has no test.
 
 ## How it works
 
@@ -409,5 +429,5 @@ The page renders the cards. Review notes go through [marked](https://marked.js.o
 To try a change while the usual instance keeps running, give the second one its own port and build folder:
 
 ```powershell
-dotnet run dashboard.cs --artifacts-path $env:TEMP\dashboard-test -- --port 5100
+dotnet run --artifacts-path $env:TEMP\dashboard-test -- --port 5100
 ```
