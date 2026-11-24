@@ -72,6 +72,10 @@ dotnet publish dashboard.cs -o $env:TEMP\dashboard-publish -r win-x64 -p:Publish
 Copy-Item $env:TEMP\dashboard-publish\dashboard.exe .
 ```
 
+`.\publish.ps1` does both again after a change of `dashboard.cs`: it publishes, stops the `dashboard.exe` of this
+folder if it runs (a running executable cannot be replaced), copies the new one and starts it (`-NoStart` leaves it
+stopped). If the build fails, the running dashboard is left alone.
+
 With `index.html` next to it, `dashboard.exe` reads the page and `dashboard.settings.json` from its own folder and
 opens the browser when it starts; here that is this folder, so a change of the page shows at once. Publish again
 after a change of `dashboard.cs`. The executable can live elsewhere with a copy of both files; set `workspace` in
