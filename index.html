@@ -167,6 +167,22 @@
   .empty-step p { max-width: 460px; }
   .timeline { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 10px 16px; padding: 20px 24px; color: var(--soft); }
   .timeline b { color: var(--text); }
+  /* Questions: one card per question (its state on the left edge), its answers, and the forms that write the vault. */
+  #questionsView { gap: 20px; }
+  .tabs a { gap: 6px; }
+  .question { display: flex; flex-direction: column; gap: 10px; border-left: 4px solid var(--wip-dot); }
+  .question.waiting { border-left-color: var(--todo-dot); } .question.resolved { border-left-color: var(--ok-dot); }
+  .question .markdown, .answer { max-width: 760px; }
+  .answer { padding: 10px 14px; border-radius: 8px; background: var(--bg); }
+  .qform { display: flex; flex-direction: column; gap: 14px; max-width: 760px; padding: 16px; border: 1px solid var(--control); border-radius: 10px; background: var(--card); }
+  .qform .fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .qform fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+  .qform label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--soft); }
+  .qform label.check { flex-direction: row; align-items: center; font-size: 14px; font-weight: 500; }
+  .qform input:not([type=radio]):not([type=checkbox]), .qform select { height: 40px; padding: 0 12px; width: 100%; font-weight: 400; }
+  .qform textarea { font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--control); border-radius: 8px;
+                    padding: 10px 12px; min-height: 110px; width: 100%; resize: vertical; }
+  .qform .note { color: var(--bad); }
   @media (max-width: 480px) { .wrap { padding-left: 16px; padding-right: 16px; } }
 </style>
 </head>
@@ -181,7 +197,7 @@
         <select id="lang" aria-label="Language"><option value="en">EN</option><option value="fr">FR</option></select>
       </div>
     </div>
-    <nav class="tabs"><a href="#" data-tab="today" data-i18n="tabToday"></a><a href="#daily" data-tab="daily" id="dailyTab"></a></nav>
+    <nav class="tabs"><a href="#" data-tab="today" data-i18n="tabToday"></a><a href="#daily" data-tab="daily" id="dailyTab"></a><a href="#questions" data-tab="questions" id="questionsTab"></a></nav>
   </div>
 </header>
 <div class="wrap"><div id="error"></div></div>
@@ -226,6 +242,7 @@
     <div class="list" id="daily"></div>
   </section>
 </section>
+<section id="questionsView" class="wrap view" hidden></section>
 <section id="pbiView" class="wrap view" hidden></section>
 <section id="prView" class="wrap view" hidden></section>
 <dialog id="reviewDialog">
@@ -311,13 +328,31 @@ const texts = {
                 "03-job-done": "Claude réalise le plan de l'analyse, après ton accord, puis note le travail fait.",
                 "04-ai-review": "Claude relit les PRs du PBI par rapport à ce qu'il demande, sans commenter ni voter.",
                 "05-test-instructions": "Claude écrit comment tester : endpoints, payloads, compte à utiliser et résultats attendus.",
-                "06-open-questions": "Claude liste les questions pour le PO ou l'équipe, sans les poster.",
+                "06-open-questions": "Claude rédige les questions pour le PO ou l'équipe, en brouillons, sans les poster.",
                 "07-pr-description": "Claude écrit une description de PR prête à coller dans Azure DevOps." },
     stepMissing: step => `Pas encore de fichier « ${step} »`, currentStep: "étape en cours", tabPr: "Pull request",
     updatedAgo: age => `mis à jour il y a ${age}`, writtenBySessions: n => `écrit par ${n} session${s(n)}`, englishOnly: "en anglais seulement",
     fileLanguage: "Langue du fichier", description: "Description", acceptance: "Critères d'acceptation",
     descMore: "Afficher toute la description", descLess: "Réduire la description",
     pbiNotFound: id => `Le PBI #${id} n'est pas dans mes PBIs ouverts.`,
+    tabQuestions: "Questions", claudeQuestions: "Faire rédiger par Claude",
+    qHeadline: n => n ? `${n} question${s(n)} attend${n > 1 ? "ent" : ""} une réponse` : "Aucune question en attente de réponse",
+    qOldest: age => `la plus ancienne depuis ${age}`, qDraftsToAsk: n => `${n} brouillon${s(n)} à poser`,
+    qNew: "Nouvelle question", qFilters: { waiting: "En attente", draft: "Brouillons", closed: "Résolues et abandonnées" },
+    qStates: { draft: "Brouillon", waiting: "En attente", resolved: "Résolue", dropped: "Abandonnée" },
+    qCounts: { waiting: n => `${n} en attente`, draft: n => `${n} brouillon${s(n)}`, resolved: n => `${n} résolue${s(n)}`, dropped: n => `${n} abandonnée${s(n)}` },
+    qChase: "à relancer", qNoPbi: "Hors PBI", qAskedTo: "posée à", qAskedOnly: "posée", qDraftMeta: "rédigée, pas encore posée",
+    qFollows: "suite de", qLedTo: "a entraîné", qOpenMessage: "Ouvrir le message", qShow: "Afficher la question", qHide: "Masquer la question",
+    qIAsked: "Je l'ai posée", qCopy: "Copier le texte", qCopied: "Copié", qDrop: "Abandonner", qReopen: "Rouvrir",
+    qAnswer: "Saisir une réponse", qDecide: "Trancher moi-même", qFollowUp: "Poser une question liée", qNotes: "Notes",
+    qChannels: { ado: "Azure DevOps", teams: "Teams", email: "E-mail", kb: "KB", call: "Appel", other: "Autre", decision: "Ma décision" },
+    qTo: "À qui (noms séparés par des virgules)", qChannel: "Canal", qAskedOn: "Posée le", qLink: "Lien vers le message (facultatif)",
+    qSource: "Source", qAuthor: "Auteur", qAnswerDate: "Date de la réponse", qAnswerText: "Réponse",
+    qAfter: "Après cette réponse, la question est", qResolved: "résolue", qStillWaiting: "toujours en attente",
+    qSaveAnswer: "Enregistrer la réponse", qSaveAsk: "Passer en attente de réponse", qSaveNew: "Enregistrer dans le vault", qCancel: "Annuler",
+    qPbi: "Rattachée à", qFollowsField: "Suite de (facultatif)", qTitle: "Titre",
+    qText: "Question (Markdown : les options, ma préférence, le défaut appliqué sans réponse)", qAlreadyAsked: "Je l'ai déjà posée",
+    qSaveFailed: message => `Enregistrement impossible : ${message}`, qNone: "Aucune question pour ce PBI", qEmptyFilter: "Aucune question dans cette liste.",
   },
   en: {
     locale: "en-GB", day: "d", title: "Today", since: age => `${age} ago`,
@@ -392,13 +427,31 @@ const texts = {
                 "03-job-done": "Claude carries out the plan of the analysis, once you approve, then records the work done.",
                 "04-ai-review": "Claude reviews the PBI's pull requests against what it asks, without commenting or voting.",
                 "05-test-instructions": "Claude writes how to test: endpoints, payloads, which account and the expected results.",
-                "06-open-questions": "Claude lists the questions for the PO or the team, without posting them.",
+                "06-open-questions": "Claude writes the questions for the PO or the team, as drafts, without posting them.",
                 "07-pr-description": "Claude writes a pull request description ready to paste in Azure DevOps." },
     stepMissing: step => `No "${step}" file yet`, currentStep: "current step", tabPr: "Pull request",
     updatedAgo: age => `updated ${age} ago`, writtenBySessions: n => `written by ${n} session${s(n)}`, englishOnly: "English only",
     fileLanguage: "File language", description: "Description", acceptance: "Acceptance criteria",
     descMore: "Show the whole description", descLess: "Fold the description",
     pbiNotFound: id => `PBI #${id} is not among my open PBIs.`,
+    tabQuestions: "Questions", claudeQuestions: "Have Claude write them",
+    qHeadline: n => n ? `${n} question${s(n)} wait${n > 1 ? "" : "s"} for an answer` : "No question waiting for an answer",
+    qOldest: age => `the oldest for ${age}`, qDraftsToAsk: n => `${n} draft${s(n)} to ask`,
+    qNew: "New question", qFilters: { waiting: "Waiting", draft: "Drafts", closed: "Resolved and dropped" },
+    qStates: { draft: "Draft", waiting: "Waiting", resolved: "Resolved", dropped: "Dropped" },
+    qCounts: { waiting: n => `${n} waiting`, draft: n => `${n} draft${s(n)}`, resolved: n => `${n} resolved`, dropped: n => `${n} dropped` },
+    qChase: "to chase", qNoPbi: "No PBI", qAskedTo: "asked to", qAskedOnly: "asked", qDraftMeta: "written, not asked yet",
+    qFollows: "follows", qLedTo: "led to", qOpenMessage: "Open the message", qShow: "Show the question", qHide: "Hide the question",
+    qIAsked: "I asked it", qCopy: "Copy the text", qCopied: "Copied", qDrop: "Drop", qReopen: "Reopen",
+    qAnswer: "Record an answer", qDecide: "Settle it myself", qFollowUp: "Ask a follow-up question", qNotes: "Notes",
+    qChannels: { ado: "Azure DevOps", teams: "Teams", email: "E-mail", kb: "KB", call: "Call", other: "Other", decision: "My decision" },
+    qTo: "To whom (names separated by commas)", qChannel: "Channel", qAskedOn: "Asked on", qLink: "Link to the message (optional)",
+    qSource: "Source", qAuthor: "Author", qAnswerDate: "Date of the answer", qAnswerText: "Answer",
+    qAfter: "After this answer, the question is", qResolved: "resolved", qStillWaiting: "still waiting",
+    qSaveAnswer: "Save the answer", qSaveAsk: "Mark as waiting for an answer", qSaveNew: "Save in the vault", qCancel: "Cancel",
+    qPbi: "Belongs to", qFollowsField: "Follows (optional)", qTitle: "Title",
+    qText: "Question (Markdown: the options, my preference, the default applied if unanswered)", qAlreadyAsked: "I already asked it",
+    qSaveFailed: message => `Could not save: ${message}`, qNone: "No question for this PBI", qEmptyFilter: "No question in this list.",
   },
 };
 
@@ -736,10 +789,12 @@ function renderPbi() {
   const tabLink = name => {
     const step = pbiSteps.includes(name);
     const label = step ? t("steps")[name] : name === "pr" ? t("tabPr") : t("history");
-    const tag = name === state?.fields.step ? pill("step", t("currentStep"), "small")
+    const waiting = name === "06-open-questions" && questions.filter(q => q.pbi === item.id && stateOf(q) === "waiting").length;
+    const tag = waiting ? pill("TODO", t("qCounts").waiting(waiting), "small")
+      : name === state?.fields.step ? pill("step", t("currentStep"), "small")
       : name === "pr" && openThreads ? pill("TODO", t("openThreads")(openThreads), "small") : "";
     return `${name === "pr" || (name === "history" && !tabs.includes("pr")) ? '<span class="sep" aria-hidden="true"></span>' : ""}
-      <a href="#pbi/${item.id}/${name}" role="tab" aria-selected="${name === tab}" class="${name === tab ? "on" : ""} ${step && !item.files?.[name] ? "missing" : ""}">${esc(label)}${tag}</a>`;
+      <a href="#pbi/${item.id}/${name}" role="tab" aria-selected="${name === tab}" class="${name === tab ? "on" : ""} ${step && !(name === "06-open-questions" ? questions.some(q => q.pbi === item.id) : item.files?.[name]) ? "missing" : ""}">${esc(label)}${tag}</a>`;
   };
   const description = [item.description, item.acceptanceCriteria && `<h4>${esc(t("acceptance"))}</h4>${item.acceptanceCriteria}`].filter(Boolean).join("");
   const firstLine = state && plainText(state.body.split(/\r?\n/).find(line => line.trim()) ?? "");
@@ -761,7 +816,7 @@ function renderPbi() {
           : `<div class="muted">${esc(t("noStatus"))}</div>`}</div>
       <span class="row-actions">${item.lastSession && !implemented(item) ? claudeButton("pbi", item.id, "claudePbi", "", "link") : ""}${pbiPrimary(item, "primary")}</span></section>
     <div class="steptabs" role="tablist">${tabs.map(tabLink).join("")}</div>
-    ${tab === "pr" ? pullRequestsPanel(item) : tab === "history" ? historyPanel(item) : stepPanel(item, tab)}`;
+    ${tab === "pr" ? pullRequestsPanel(item) : tab === "history" ? historyPanel(item) : tab === "06-open-questions" ? questionsPanel(item) : stepPanel(item, tab)}`;
   finishPage(view);
 }
 
@@ -794,6 +849,229 @@ function stepPanel(item, step) {
   return filePanel(item.files?.[step], { translate: claude("translate", "claudeTranslate", "dashed"), action: claude("step", "claudeStep", ""),
     missing: { title: t("stepMissing")(t("steps")[step]), help: t("stepHelp")[step], button: claude("step", "claudeStepStart", "primary") } });
 }
+
+// Questions asked to the PO or the team: one file each in the vault (rule "Questions" of the workspace CLAUDE.md),
+// read from /api/questions on their own (no Azure DevOps call). A question is a draft, then waiting once asked, then
+// resolved by an answer or dropped. The Questions view lists them all, the Questions tab of a PBI lists its own, and
+// the forms write the files through POST /api/questions/<action>, which answers the new list.
+let questions = [], questionForm = null, questionFilter = "waiting";
+const shownQuestions = new Set();
+const questionRank = { waiting: 0, draft: 1, resolved: 2, dropped: 3 };
+const questionChannels = ["ado", "teams", "email", "kb", "call", "other"];
+const stateOf = q => q.state in questionRank ? q.state : "draft";
+const askedTime = q => new Date(q.asked || q.updated).getTime() || 0;
+// Waiting ones first, the oldest on top; then the drafts and the closed ones, the last changed on top.
+const sortQuestions = list => [...list].sort((a, b) => questionRank[stateOf(a)] - questionRank[stateOf(b)]
+  || (stateOf(a) === "waiting" ? askedTime(a) - askedTime(b) : (b.updated ?? "").localeCompare(a.updated ?? "")));
+// A date of a question file: with its time when it has one, as written when it is not a date.
+const when = value => !value ? "" : isNaN(new Date(value)) ? value : value.includes("T") ? shortDateTime(value) : shortDate(value);
+const messageLink = url => /^https?:\/\//.test(url ?? "") ? `<a class="link" href="${esc(url)}" target="_blank" rel="noopener">${esc(t("qOpenMessage"))}</a>` : "";
+const questionNumber = q => { const match = /^q(\d+)-/.exec(q.name); return match ? `Q${Number(match[1])}` : q.title; };
+const nowLocal = () => { const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); return now.toISOString().slice(0, 16); };
+const optionsHtml = (values, names, selected) => values.map(value =>
+  `<option value="${esc(value)}"${value === selected ? " selected" : ""}>${esc(names[value] ?? value)}</option>`).join("");
+
+async function loadQuestions() {
+  if (questionForm) return;
+  try {
+    const response = await fetch("/api/questions");
+    if (response.ok) setQuestions(await response.json());
+  } catch { }
+}
+function setQuestions(list) {
+  questions = list;
+  updateQuestionsTab();
+  drawQuestions();
+}
+const drawQuestions = () => { renderQuestions(); renderPbi(); };
+function updateQuestionsTab() {
+  const waiting = questions.filter(q => stateOf(q) === "waiting").length;
+  document.getElementById("questionsTab").innerHTML = esc(t("tabQuestions")) + (waiting ? pill("TODO", waiting, "small") : "");
+}
+
+// One question: its state (and how long it has been waiting), who it was asked to and where, its answers with their
+// source and link, then what can be done with it, or the form that was opened on it.
+function questionCard(q, showPbi) {
+  const state = stateOf(q);
+  const chase = state === "waiting" && Date.now() - askedTime(q) > 7 * 864e5;
+  const item = lastData?.workItems.find(workItem => workItem.id === q.pbi);
+  const related = other => `<a class="link" href="#" data-qtoggle="${esc(other.file)}" title="${esc(other.title)}">${esc(questionNumber(other))}</a>`;
+  const follows = q.follows && questions.find(other => other.pbi === q.pbi && other.name === q.follows);
+  const followers = questions.filter(other => other.pbi === q.pbi && other.follows === q.name);
+  const meta = [
+    showPbi && (!q.pbi ? esc(t("qNoPbi")) : item ? `<a class="link" href="#pbi/${q.pbi}/06-open-questions">#${q.pbi} ${esc(item.title)}</a>` : `#${q.pbi}`),
+    state === "draft" && !q.asked ? esc(t("qDraftMeta"))
+      : [q.to ? `${esc(t("qAskedTo"))} <b>${esc(q.to)}</b>` : esc(t("qAskedOnly")), esc(t("qChannels")[q.channel] ?? q.channel ?? ""), esc(when(q.asked))].filter(Boolean).join(" · "),
+    messageLink(q.link),
+    follows && `${esc(t("qFollows"))} ${related(follows)}`,
+    followers.length && `${esc(t("qLedTo"))} ${followers.map(related).join(", ")}`,
+  ].filter(Boolean).join(" · ");
+  // The text of the question shows at once in the tab of its PBI while it is open, and on demand elsewhere.
+  const open = shownQuestions.has(q.file) !== (!showPbi && questionRank[state] < 2);
+  const button = (kind, label, cls = "") => `<button class="${cls}" data-qform="${kind}" data-file="${esc(q.file)}">${esc(t(label))}</button>`;
+  const setState = (value, label) => `<button class="link" data-qstate="${value}" data-file="${esc(q.file)}">${esc(t(label))}</button>`;
+  const toggle = `<button class="link" data-qtoggle="${esc(q.file)}">${esc(t(open ? "qHide" : "qShow"))}</button>`;
+  const actions = state === "draft" ? `${button("ask", "qIAsked")}<button data-qcopy="${esc(q.file)}">${esc(t("qCopy"))}</button>${toggle}${setState("dropped", "qDrop")}`
+    : state === "waiting" ? `${button("answer", "qAnswer", "primary")}${button("decide", "qDecide")}${toggle}${button("new", "qFollowUp", "link")}${setState("dropped", "qDrop")}`
+    : `${toggle}${button("new", "qFollowUp", "link")}${setState(q.asked ? "waiting" : "draft", "qReopen")}`;
+  const form = questionForm?.file === q.file && questionForm.kind !== "new";
+  return `<article class="row pad question ${state}" id="q-${esc(q.file)}">
+    <div class="row-meta">${pill(state === "waiting" ? "TODO" : state === "resolved" ? "OK" : "", [t("qStates")[state], state === "waiting" && ago(q.asked || q.updated), chase && t("qChase")].filter(Boolean).join(" · "))}<span>${meta}</span></div>
+    <h3>${esc(q.title)}</h3>
+    ${open && q.question ? `<div class="markdown">${markdown(q.question)}</div>` : ""}
+    ${q.answers.map(answer => `<div class="answer"><div class="row-meta"><b>${esc(answer.author)}</b><span>${esc(when(answer.date))}</span>
+        ${pill("WAIT", t("qChannels")[answer.source] ?? answer.source, "small")}${messageLink(answer.link)}</div>
+      <div class="markdown">${markdown(answer.text)}</div></div>`).join("")}
+    ${open && q.notes ? `<div><div class="label">${esc(t("qNotes"))}</div><div class="markdown">${markdown(q.notes)}</div></div>` : ""}
+    ${form ? (questionForm.kind === "ask" ? askForm(q) : answerForm(q, questionForm.kind === "decide")) : `<div class="row-actions">${actions}</div>`}</article>`;
+}
+
+// The forms. The names already met (people asked, authors of answers) are proposed where a name is typed.
+const formHtml = (kind, file, title, fields, submit) => `<form class="qform" data-qsubmit="${kind}" data-file="${esc(file ?? "")}">
+    <b>${esc(title)}</b>${fields}
+    <datalist id="people">${[...new Set(questions.flatMap(q => [...(q.to ?? "").split(","), ...q.answers.map(answer => answer.author)])
+      .map(name => name.trim()).filter(Boolean))].sort().map(name => `<option value="${esc(name)}">`).join("")}</datalist>
+    <div class="row-actions"><button class="primary" type="submit">${esc(submit)}</button><button type="button" data-qcancel>${esc(t("qCancel"))}</button><span class="note"></span></div></form>`;
+// Who a question was asked to, where, when, and the link of the message (pasted from Teams, Azure DevOps or a mail).
+const askedFields = q => `<div class="fields">
+    <label>${esc(t("qTo"))}<input name="to" required list="people" autocomplete="off" value="${esc(q?.to ?? "")}"></label>
+    <label>${esc(t("qChannel"))}<select name="channel">${optionsHtml(questionChannels, t("qChannels"), q?.channel ?? "teams")}</select></label>
+    <label>${esc(t("qAskedOn"))}<input name="asked" type="datetime-local" required value="${nowLocal()}"></label>
+    <label>${esc(t("qLink"))}<input name="link" type="url" placeholder="https://" value="${esc(q?.link ?? "")}"></label></div>`;
+const askForm = q => formHtml("ask", q.file, t("qIAsked"), askedFields(q), t("qSaveAsk"));
+
+// An answer, or my own decision (source "decision", under the name my last decision was written with).
+function answerForm(q, decide) {
+  const author = decide ? questions.flatMap(other => other.answers).filter(answer => answer.source === "decision").pop()?.author ?? ""
+    : (q.to ?? "").split(",")[0].trim();
+  return formHtml("answer", q.file, t(decide ? "qDecide" : "qAnswer"), `<div class="fields">
+      <label>${esc(t("qSource"))}<select name="source">${optionsHtml([...questionChannels, "decision"], t("qChannels"), decide ? "decision" : q.channel ?? "teams")}</select></label>
+      <label>${esc(t("qAuthor"))}<input name="author" required list="people" autocomplete="off" value="${esc(author)}"></label>
+      <label>${esc(t("qAnswerDate"))}<input name="date" type="datetime-local" required value="${nowLocal()}"></label>
+      <label>${esc(t("qLink"))}<input name="link" type="url" placeholder="https://"></label></div>
+    <label>${esc(t("qAnswerText"))}<textarea name="text" required></textarea></label>
+    <div class="row-actions"><span class="muted">${esc(t("qAfter"))}</span>
+      <label class="check"><input type="radio" name="state" value="resolved" checked>${esc(t("qResolved"))}</label>
+      <label class="check"><input type="radio" name="state" value="waiting">${esc(t("qStillWaiting"))}</label></div>`, t("qSaveAnswer"));
+}
+
+// A new question: for one of my PBIs (or one that already has questions) or for none, maybe following another one,
+// kept as a draft unless it was already asked.
+const followsOptions = (pbi, selected) => `<option value=""></option>` + sortQuestions(questions.filter(q => (q.pbi ?? null) === pbi))
+  .map(q => `<option value="${esc(q.name)}"${q.name === selected ? " selected" : ""}>${esc(q.title)}</option>`).join("");
+function newQuestionForm({ pbi = null, follows = "" }) {
+  const titles = new Map([...questions.filter(q => q.pbi).map(q => [q.pbi, ""]), ...(lastData?.workItems ?? []).map(item => [item.id, item.title])]);
+  if (pbi) titles.set(pbi, titles.get(pbi) ?? "");
+  return formHtml("create", "", t("qNew"), `<div class="fields">
+      <label>${esc(t("qPbi"))}<select name="pbi"><option value="">${esc(t("qNoPbi"))}</option>${[...titles.keys()].sort((a, b) => b - a).map(id =>
+        `<option value="${id}"${id === pbi ? " selected" : ""}>#${id} ${esc(titles.get(id))}</option>`).join("")}</select></label>
+      <label>${esc(t("qFollowsField"))}<select name="follows">${followsOptions(pbi, follows)}</select></label></div>
+    <label>${esc(t("qTitle"))}<input name="title" required autocomplete="off"></label>
+    <label>${esc(t("qText"))}<textarea name="question"></textarea></label>
+    <label class="check"><input type="checkbox" name="askedNow" data-qasked>${esc(t("qAlreadyAsked"))}</label>
+    <fieldset data-asked-fields hidden disabled>${askedFields()}</fieldset>`, t("qSaveNew"));
+}
+
+// The Questions view: every question of the vault, the ones waiting for an answer first.
+function renderQuestions() {
+  if (activeView !== "questions") return;
+  const filters = { waiting: ["waiting"], draft: ["draft"], closed: ["resolved", "dropped"] };
+  const inFilter = key => questions.filter(q => filters[key].includes(stateOf(q)));
+  const waiting = sortQuestions(inFilter("waiting")), shown = sortQuestions(inFilter(questionFilter));
+  const view = document.getElementById("questionsView");
+  view.innerHTML = `<div class="head-row">
+      <div><h2>${esc(t("qHeadline")(waiting.length))}</h2>
+        <div class="muted">${esc(cap([waiting.length && t("qOldest")(ago(waiting[0].asked || waiting[0].updated)), t("qDraftsToAsk")(inFilter("draft").length)].filter(Boolean).join(" · ")))}</div></div>
+      <button class="primary" data-qform="new">${esc(t("qNew"))}</button></div>
+    <div class="sprints">${Object.keys(filters).map(key => `<button data-qfilter="${key}" aria-pressed="${key === questionFilter}" class="${key === questionFilter ? "on" : ""}">${
+      esc(t("qFilters")[key])} · ${inFilter(key).length}</button>`).join("")}</div>
+    ${questionForm?.kind === "new" ? newQuestionForm(questionForm) : ""}
+    <div class="list">${shown.map(q => questionCard(q, true)).join("") || `<div class="empty">${esc(t("qEmptyFilter"))}</div>`}</div>`;
+  view.querySelectorAll(".markdown a").forEach(a => a.target = "_blank");
+}
+
+// The Questions tab of a PBI: its questions, a new one, or Claude to draft them (the step 06-open-questions).
+function questionsPanel(item) {
+  const list = sortQuestions(questions.filter(q => q.pbi === item.id));
+  const claude = `<button data-claude="step/${item.id}" data-query="&amp;step=06-open-questions" data-label="claudeQuestions">${esc(t("claudeQuestions"))}</button>`;
+  const add = `<button class="primary" data-qform="new" data-pbi="${item.id}">${esc(t("qNew"))}</button>`;
+  const form = questionForm?.kind === "new" ? newQuestionForm(questionForm) : "";
+  if (!list.length) return `${form}<section class="row empty-step"><h2>${esc(t("qNone"))}</h2>
+    <p class="muted">${esc(t("stepHelp")["06-open-questions"])}</p><div class="row-actions">${add}${claude}</div></section>`;
+  const counts = Object.keys(questionRank).map(state => [state, list.filter(q => stateOf(q) === state).length]).filter(([, count]) => count)
+    .map(([state, count]) => t("qCounts")[state](count)).join(" · ");
+  return `<div class="head-row"><span class="muted">${esc(counts)}</span><span class="row-actions">${claude}${add}</span></div>
+    ${form}<div class="list">${list.map(q => questionCard(q, false)).join("")}</div>`;
+}
+
+async function postQuestion(action, body, form) {
+  try {
+    const response = await fetch(`/api/questions/${action}`, { method: "POST", headers: { "X-Dashboard": "1", "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || response.statusText);
+    questionForm = null;
+    document.getElementById("error").style.display = "none";
+    setQuestions(data);
+  } catch (e) {
+    const note = form?.querySelector(".note") ?? document.getElementById("error");
+    note.textContent = t("qSaveFailed")(e.message);
+    note.style.display = "block";
+  }
+}
+
+// Clicks on the question cards and forms (called by the page's click listener).
+function questionClick(e) {
+  const pick = name => e.target.closest(`[data-${name}]`);
+  const formButton = pick("qform"), toggle = pick("qtoggle"), filter = pick("qfilter"), state = pick("qstate"), copy = pick("qcopy");
+  if (formButton) {
+    // "New" from a card is a follow-up of its question; from the tab of a PBI it is a question of that PBI.
+    const q = questions.find(other => other.file === formButton.dataset.file);
+    questionForm = formButton.dataset.qform === "new"
+      ? { kind: "new", pbi: q?.pbi ?? (Number(formButton.dataset.pbi) || null), follows: q?.name ?? "" }
+      : { kind: formButton.dataset.qform, file: q.file };
+    drawQuestions();
+    [...document.querySelectorAll(".qform")].find(form => form.offsetParent)?.scrollIntoView({ block: "center" });
+  }
+  if (pick("qcancel")) { questionForm = null; drawQuestions(); }
+  if (toggle) {
+    e.preventDefault();
+    const file = toggle.dataset.qtoggle;
+    shownQuestions.has(file) ? shownQuestions.delete(file) : shownQuestions.add(file);
+    drawQuestions();
+    if (toggle.tagName === "A") document.getElementById(`q-${file}`)?.scrollIntoView({ block: "center" });
+  }
+  if (filter) { questionFilter = filter.dataset.qfilter; renderQuestions(); }
+  if (state) postQuestion("state", { file: state.dataset.file, state: state.dataset.qstate });
+  if (copy) {
+    const q = questions.find(other => other.file === copy.dataset.qcopy);
+    navigator.clipboard?.writeText(q.question).then(() => {
+      copy.textContent = t("qCopied");
+      setTimeout(() => copy.textContent = t("qCopy"), 2000);
+    });
+  }
+}
+document.addEventListener("submit", e => {
+  const form = e.target.closest("form.qform");
+  if (!form) return;
+  e.preventDefault();
+  const body = Object.fromEntries(new FormData(form));
+  if (form.dataset.file) body.file = form.dataset.file;
+  if (form.dataset.qsubmit === "create") {
+    body.pbi = Number(body.pbi) || null;
+    body.state = body.askedNow ? "waiting" : "draft";
+  }
+  postQuestion(form.dataset.qsubmit, body, form);
+});
+document.addEventListener("change", e => {
+  const form = e.target.closest("form.qform");
+  if (!form) return;
+  // "Already asked" opens the fields that say to whom and where; another PBI offers its own questions to follow.
+  if (e.target.matches("[data-qasked]")) {
+    const fields = form.querySelector("[data-asked-fields]");
+    fields.hidden = fields.disabled = !e.target.checked;
+  }
+  if (e.target.name === "pbi") form.elements.follows.innerHTML = followsOptions(Number(e.target.value) || null, "");
+});
 
 // The page of one pull request (#pr/<id>/<tab>), one I review or one of my PBIs: what it asks, its signals, votes,
 // work items and description, then its open comment threads whole, my review and the analysis of its threads.
@@ -918,6 +1196,7 @@ function translatePage() {
   document.querySelectorAll("[data-i18n-title]").forEach(element => element.title = element.ariaLabel = t(element.dataset.i18nTitle));
   updateReviewPlaceholder();
   updateDailyTab();
+  updateQuestionsTab();
   updateTabIcon();
   document.getElementById("today").textContent = cap(new Date().toLocaleDateString(t("locale"), { weekday: "long", day: "numeric", month: "long" }));
   document.getElementById("lang").value = lang;
@@ -926,6 +1205,7 @@ function translatePage() {
 async function load() {
   if (loading) return;
   loading = true;
+  loadQuestions();
   const main = document.querySelector("main");
   main.classList.add("loading");
   document.getElementById("updated").innerHTML = `<span class="spinner"></span> ${esc(t("updating"))}`;
@@ -954,7 +1234,8 @@ function tick() {
   const updated = document.getElementById("updated");
   const at = updated.dataset.at ? new Date(updated.dataset.at).toLocaleTimeString(t("locale"), { hour: "2-digit", minute: "2-digit" }) : "-";
   if (!loading) updated.textContent = t("updated")(at);
-  if (!loading && Date.now() >= nextRefresh) load();
+  // An open question form would lose what is typed in it: the automatic refresh waits.
+  if (!loading && Date.now() >= nextRefresh && !questionForm) load();
 }
 
 document.getElementById("lang").onchange = event => {
@@ -1051,7 +1332,7 @@ function renderDaily() {
 let shownPage = "", listScroll = 0;
 function route() {
   const [name, id, tab] = location.hash.slice(1).split("/");
-  const view = name === "daily" ? "daily" : ["pbi", "pr"].includes(name) && Number(id) ? name : "today";
+  const view = ["daily", "questions"].includes(name) ? name : ["pbi", "pr"].includes(name) && Number(id) ? name : "today";
   // Another PBI or pull request starts folded, from its top; a tab of the same one stays where it is. Leaving the
   // list for such a page keeps the place in the list, to come back to it.
   const isPage = name => name === "pbi" || name === "pr";
@@ -1063,8 +1344,10 @@ function route() {
   pbiRoute = view === "pbi" ? { id: Number(id), tab } : null;
   prRoute = view === "pr" ? { id: Number(id), tab } : null;
   document.querySelectorAll(".tabs a").forEach(link => link.classList.toggle("on", link.dataset.tab === view));
-  ["today", "daily", "pbi", "pr"].forEach(key => document.getElementById(`${key}View`).hidden = key !== view);
+  ["today", "daily", "questions", "pbi", "pr"].forEach(key => document.getElementById(`${key}View`).hidden = key !== view);
   if (view === "daily") loadDaily();
+  questionForm = null;
+  renderQuestions();
   renderPbi();
   renderPr();
   if (changed && isPage(view)) window.scrollTo(0, 0);
@@ -1145,6 +1428,7 @@ document.addEventListener("click", e => {
   const fileLanguage = e.target.closest("[data-doclang]");
   if (fileLanguage) { docLang = fileLanguage.dataset.doclang; renderPbi(); renderPr(); }
   if (e.target.closest("[data-desc-toggle]")) { descOpen = !descOpen; renderPbi(); renderPr(); }
+  questionClick(e);
 });
 document.getElementById("reviewClose").onclick = () => document.getElementById("reviewDialog").close();
 translatePage();

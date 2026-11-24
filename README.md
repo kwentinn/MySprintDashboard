@@ -95,13 +95,14 @@ The browser tab shows a checklist icon; when rows are to do, it gets an orange b
 title starts with it ("(3) Today"), so the tab tells whether something waits without opening it.
 
 The header shows the date and how many rows are **to do** (orange), **in progress** (grey), **waiting** (blue) and
-**done** (green); hovering a counter explains its status. The page has four views, kept in the address so that a
+**done** (green); hovering a counter explains its status. The page has five views, kept in the address so that a
 reload and the browser's back button work:
 
 | View | Address | Content |
 | :--- | :------ | :------ |
 | Today | `/` | the pull requests waiting for my review, then my PBIs, one row each |
 | Daily | `#daily` | what I did on the previous working day |
+| Questions | `#questions` | every question asked to the PO or the team, the ones waiting for an answer first |
 | Pull request | `#pr/<id>/<tab>` | one pull request: its threads, my review, the analysis of its threads |
 | PBI | `#pbi/<id>/<tab>` | one PBI: its working files, its pull requests, its history |
 
@@ -205,6 +206,8 @@ step.
   - **Create the French copy**, when it has none: opens a Claude session that writes `<step>.fr.md`;
   - **Run Claude on this step again**: opens a Claude session on this step (see Claude sessions).
 - **A step without a file** says what Claude would write there, with **Run Claude on this step**.
+- **Questions** is not a file: it lists the questions of the PBI (see Questions below) and carries how many wait for
+  an answer.
 - **Pull request** lists the PBI's pull requests, each with what it asks, its sentence and votes, then its open
   conversations in full; the resolved threads are only counted. Merged and abandoned pull requests are dimmed. The
   tab shows as soon as a pull request exists, whatever the state of the PBI, and carries the number of open threads.
@@ -219,6 +222,44 @@ step.
 
 Revisions that change none of these (description, links, comments) are left out. If the revisions of a PBI cannot be
 read, its history is empty and the rest of the page still loads (the error goes to the server console).
+
+### Questions
+
+A question to the PO or the team is one file of the vault, so that it can be followed whatever the channel it
+travels on (Azure DevOps, Teams, e-mail): `PBIs/pbi-<id>/questions/q<NN>-<slug>.md` for a PBI,
+`Questions/q-<date>-<slug>.md` for a question tied to no PBI. Its frontmatter holds its state, who it was asked to,
+on which channel, when, and the link of the message; its body the question, then its answers, each with its date,
+author, source and link. A question can follow another one (`follows`).
+
+| State | Meaning |
+| :---- | :------ |
+| Draft | written, not asked yet |
+| Waiting | asked, no answer that settles it (orange, with how long it has waited; "to chase" after a week) |
+| Resolved | settled by an answer, or by my own decision |
+| Dropped | no longer needs an answer |
+
+The **Questions** tab of the header carries the number of waiting questions. Its view lists every question of the
+vault under three filters (Waiting, the oldest first; Drafts; Resolved and dropped), each with its PBI. The Questions
+tab of a PBI page lists the questions of that PBI, and **Have Claude write them** opens a session that drafts them.
+A card shows the state, who the question was asked to, where and when, **Open the message**, the questions it
+follows or led to, and its answers. The forms write the files of the vault themselves, with no Claude session:
+
+| Button | What it writes |
+| :----- | :------------- |
+| **New question** | a new file, numbered after the last one of its PBI, as a draft or already asked, and its line in the index (`06-open-questions.md` and its French copy, or `Questions/Questions.md`) |
+| **I asked it** (draft) | who it was asked to, the channel, the date and the link of the message; the question becomes waiting |
+| **Record an answer** (waiting) | an answer with its source, author, date, link and text; the question becomes resolved, or stays waiting when the answer does not settle it |
+| **Settle it myself** (waiting) | the same, with the source "my decision" |
+| **Ask a follow-up question** | a new question that follows this one |
+| **Drop**, **Reopen** | the state only |
+| **Copy the text** (draft) | nothing: the text of the question goes to the clipboard, to paste it where it is asked |
+
+The link of a message is pasted by hand (in Teams: the "..." menu of the message, then "Copy link"); only an
+`http(s)` address is accepted. The server reads the files with `GET /api/questions` (no Azure DevOps call, so the
+view shows at once) and writes them with `POST /api/questions/<create|ask|answer|state>`, under the same guard as the
+Claude sessions (`Origin` and `X-Dashboard: 1`). It only writes question files and their index, at a path it builds
+or checks itself. A file written by the dashboard names `dashboard` as its session. The automatic refresh waits
+while a form is open.
 
 ### Status of a row
 
@@ -313,7 +354,7 @@ A session on a PBI keeps its files in `PBIs/pbi-<id>/`, following the rule "PBI 
 | `03-job-done.md` | the work done |
 | `04-ai-review.md` | the AI code review (also where the PBI review writes) |
 | `05-test-instructions.md` | endpoints, payloads, account (S2S token or user), expected results |
-| `06-open-questions.md` | questions for the PO or the team, with their answers |
+| `06-open-questions.md` | the index of the questions for the PO or the team, one file each in `questions/` (see Questions) |
 | `07-pr-description.md` | a PR description ready to paste |
 
 Each file starts with a YAML frontmatter naming the sessions that wrote it (`updated`, `session`, `sessions`). French
