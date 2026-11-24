@@ -273,6 +273,22 @@ Claude sessions (`Origin` and `X-Dashboard: 1`). It only writes question files a
 or checks itself. A file written by the dashboard names `dashboard` as its session. The automatic refresh waits
 while a form is open.
 
+### Reader of the vault's files
+
+A link from one markdown file of the vault to another opens in the page, in a reader, instead of leading nowhere:
+in a working file, a report, a question, its answers and notes, and in the reader itself.
+
+| Link | Opens |
+| :--- | :---- |
+| relative, `[job done](../03-job-done.md)` | the file, from the folder of the file the link is in |
+| Obsidian, `[[PBIs/pbi-1201/00-status\|Status]]` or `[[Note#Section]]` | the note, from the root of the vault; a note named without its folder is looked for in the whole vault |
+| to another kind of file (a PDF, an image) | nothing: the reader says it only shows markdown, and where the file is |
+| to a site | the site, in a new tab, as before |
+
+The reader shows the path of the file, its last change and the sessions that wrote it, then its text; **Back**
+returns to the file the last link was followed from. The server gives a file with `GET /api/vault?path=<path>`,
+only a `.md` file inside the vault folder.
+
 ### Status of a row
 
 | Status | Pull request I review | My own pull request |
@@ -395,7 +411,8 @@ so another site open in the browser cannot start a session.
 dotnet test tests
 ```
 
-The tests cover `VaultQuestions.cs`, the only code that changes files of the vault: what is read from a question
+The tests cover `VaultQuestions.cs`, the only code that changes files of the vault, and the file the reader may
+open (`VaultFile`, nothing outside the vault): what is read from a question
 file (frontmatter, sections, answers), which files count as questions, and what the forms write (a new question
 with its number and its lines in the indexes, a change of state, an answer placed before the notes), plus the
 paths and texts it refuses. Each test works in an empty vault under the temporary folder, never in the real one.

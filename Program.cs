@@ -152,6 +152,10 @@ app.MapPost("/api/sessions/{kind}/{id:int}", async (HttpRequest request, string 
     }
 });
 
+// A markdown file of the vault (?path=, relative to the vault), for the reader the page opens on a link between notes.
+app.MapGet("/api/vault", (HttpRequest request) => VaultFile(request.Query["path"]) is { } file
+    ? Results.Content(file.ToJsonString(), "application/json") : Results.NotFound());
+
 // The questions asked to the PO or the team (rule "Questions" in the workspace CLAUDE.md): every question file of the
 // vault, parsed. No Azure DevOps call, so the page reads them on their own.
 app.MapGet("/api/questions", () => Results.Content(Questions().ToJsonString(), "application/json"));

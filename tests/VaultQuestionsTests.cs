@@ -3,7 +3,8 @@ using Xunit;
 using static VaultQuestions;
 
 // The question files of the vault: what the dashboard reads from them and what its forms write. Each test gets an
-// empty vault in a temporary folder; the settings are static, so the tests of this class run one after the other.
+// empty vault in a temporary folder; the settings are static, so the test classes share a collection and run one after the other.
+[Collection("vault")]
 public sealed class VaultQuestionsTests : IDisposable
 {
     readonly string vault = Path.Combine(Path.GetTempPath(), "dashboard-tests-" + Guid.NewGuid().ToString("N"));

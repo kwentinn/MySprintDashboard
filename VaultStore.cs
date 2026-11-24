@@ -19,6 +19,20 @@ public static class VaultStore
         return english;
     }
 
+    // A markdown file of the vault named by the page (a link between two notes): `relativePath` is relative to the vault
+    // and must stay in it. A bare file name ("Note.md", as an Obsidian link written without its folder) is looked for
+    // in the whole vault. Null when it is not a markdown file of the vault.
+    public static JsonObject? VaultFile(string? relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath) || !relativePath.EndsWith(".md", StringComparison.OrdinalIgnoreCase)) return null;
+        var root = Path.GetFullPath(Vault).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var path = Path.GetFullPath(Path.Combine(root, relativePath.TrimStart('/', '\\')));
+        if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase)) return null;
+        if (!File.Exists(path) && Path.GetFileName(path) is var name && path == root + name)
+            path = Directory.EnumerateFiles(root, name, SearchOption.AllDirectories).Order().FirstOrDefault() ?? path;
+        return MarkdownFile(path);
+    }
+
     // A markdown file of the vault sent as raw text, with its path relative to the vault. Null when missing.
     public static JsonObject? MarkdownFile(string path)
     {

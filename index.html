@@ -246,7 +246,7 @@
 <section id="pbiView" class="wrap view" hidden></section>
 <section id="prView" class="wrap view" hidden></section>
 <dialog id="reviewDialog">
-  <div class="bar"><span id="reviewFile"></span><button id="reviewClose" data-i18n="close"></button></div>
+  <div class="bar"><span class="row-actions"><button id="reviewBack" data-i18n="back" hidden></button><span id="reviewFile"></span></span><button id="reviewClose" data-i18n="close"></button></div>
   <div class="markdown" id="reviewBody"></div>
 </dialog>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
@@ -257,7 +257,8 @@ const s = n => n > 1 ? "s" : "";
 const texts = {
   fr: {
     locale: "fr-FR", day: "j", title: "Aujourd'hui", since: age => `il y a ${age}`,
-    loading: "Chargement...", refreshNow: "Rafraîchir maintenant", close: "Fermer", details: "Détails",
+    loading: "Chargement...", refreshNow: "Rafraîchir maintenant", close: "Fermer", back: "Retour", fileMissing: path => `Fichier introuvable dans le vault : ${path}`,
+    fileNotMarkdown: path => `Le lecteur n'affiche que les fichiers Markdown. Ce fichier est dans le vault : ${path}`, details: "Détails",
     reviewsTitle: "Relectures de code", itemsTitle: "Mes PBIs", loadingPrs: "Chargement des PRs...", loadingPbis: "Chargement des PBIs...",
     emptyReviews: "Aucune PR à relire.", emptyItems: "Aucun PBI ouvert.",
     todo: n => `${n} à faire`, wip: n => `${n} en cours`, wait: n => `${n} en attente`, done: n => `${n} terminé${s(n)}`,
@@ -356,7 +357,8 @@ const texts = {
   },
   en: {
     locale: "en-GB", day: "d", title: "Today", since: age => `${age} ago`,
-    loading: "Loading...", refreshNow: "Refresh now", close: "Close", details: "Details",
+    loading: "Loading...", refreshNow: "Refresh now", close: "Close", back: "Back", fileMissing: path => `No such file in the vault: ${path}`,
+    fileNotMarkdown: path => `The reader only shows Markdown files. This file is in the vault: ${path}`, details: "Details",
     reviewsTitle: "Code reviews", itemsTitle: "My PBIs", loadingPrs: "Loading pull requests...", loadingPbis: "Loading PBIs...",
     emptyReviews: "No pull request to review.", emptyItems: "No open PBI.",
     todo: n => `${n} to do`, wip: n => `${n} in progress`, wait: n => `${n} waiting`, done: n => `${n} done`,
@@ -513,12 +515,16 @@ function itemAction(item) {
   return ["WIP", t("reasonInProgress")];
 }
 
+// Obsidian links between notes, [[Folder/Note|text]] or [[Note#Section]], become markdown links to the note's file
+// from the root of the vault ("/Folder/Note.md"), which the reader opens (see vaultPath).
+const wikilinks = text => text.replace(/\[\[([^\]|#\n]+)(?:#[^\]|\n]*)?(?:\|([^\]\n]+))?\]\]/g,
+  (_, target, alias) => `[${alias ?? target.trim().split("/").pop()}](</${target.trim()}${/\.md$/i.test(target.trim()) ? "" : ".md"}>)`);
 // Markdown files of the vault: reviews (Reviews/<pr>-review.md, <pr>-threads.md) and PBI working files
 // (PBIs/pbi-<id>/<step>.md), keyed "review:<pr>" / "threads:<pr>" / "pbi:<id>:<step>". Rendered with marked and
 // sanitized with DOMPurify; raw text if the CDN is unreachable.
 const documents = new Map();
 const markdown = text => window.marked && window.DOMPurify
-  ? DOMPurify.sanitize(marked.parse(text), { ADD_ATTR: ["target"] })
+  ? DOMPurify.sanitize(marked.parse(wikilinks(text)), { ADD_ATTR: ["target"] })
   : `<pre>${esc(text)}</pre>`;
 // HTML written in Azure DevOps (a PBI's description): sanitized, or its text alone if the CDN is unreachable. Its
 // inline styles go too: colors pasted into Azure DevOps would fight the page's theme (black text in dark mode).
@@ -548,32 +554,71 @@ const statusOf = item => {
   return file ? { file, ...frontmatter(file.markdown) } : null;
 };
 
+// A file of the vault as the dialog shows it: its frontmatter becomes one line above the text, with its last change
+// and the sessions that wrote it.
+const docText = doc => {
+  const { fields, body } = frontmatter(doc.markdown);
+  return (fields.session ? `*${t("writtenBy")(ago(fields.updated || doc.updated), fields.sessions || fields.session)}*\n\n` : "") + body;
+};
+
 // The documents the dialog opens, in the page language.
 function registerDocuments() {
   documents.clear();
   const add = (key, report, label) => {
     const doc = localized(report);
     if (!doc) return;
-    // The frontmatter becomes one line above the text: last change and the sessions that wrote the file.
-    const { fields, body } = frontmatter(doc.markdown);
-    const meta = fields.session ? `*${t("writtenBy")(ago(fields.updated || doc.updated), fields.sessions || fields.session)}*\n\n` : "";
-    documents.set(key, { file: `${doc.file} · ${label}`, markdown: meta + body });
+    documents.set(key, { file: `${doc.file} · ${label}`, path: doc.file, markdown: docText(doc) });
   };
   lastData.workItems.forEach(item => ["00-status", "06-open-questions"].forEach(step => add(`pbi:${item.id}:${step}`, item.files?.[step], `#${item.id}`)));
 }
 
 function openDocument(key) {
   const doc = documents.get(key);
-  if (doc) showDialog(doc.file, markdown(doc.markdown));
+  if (!doc) return;
+  readerTrail.length = 0;
+  readerTrail.push(doc.path);
+  showDialog(doc.file, markdown(doc.markdown), doc.path);
 }
 
-function showDialog(title, html) {
+// The dialog is the reader of the vault's markdown files: `file` (relative to the vault) is what the links of the
+// text shown are relative to, and Back returns to the file the last link was followed from.
+const readerTrail = [];
+function showDialog(title, html, file = "") {
   document.getElementById("reviewFile").textContent = title;
+  document.getElementById("reviewBack").hidden = readerTrail.length < 2;
   const body = document.getElementById("reviewBody");
+  body.dataset.vault = file;
   body.innerHTML = html;
   body.querySelectorAll("a").forEach(a => a.target = "_blank");
-  document.getElementById("reviewDialog").showModal();
-  body.parentElement.scrollTop = 0;
+  const dialog = document.getElementById("reviewDialog");
+  if (!dialog.open) dialog.showModal();
+  dialog.scrollTop = 0;
+}
+
+// The file of the vault a link of a vault text points to, or null for any other link (a site, an anchor). A text of the vault sits in an element whose data-vault is its file: a relative link starts from
+// the folder of that file, a link that starts with "/" from the root of the vault.
+function vaultPath(link) {
+  const href = link.getAttribute("href");
+  if (/^([a-z][a-z0-9+.-]*:|#|\/\/)/i.test(href)) return null;
+  let path;
+  try { path = decodeURIComponent(href.split(/[?#]/)[0]); } catch { return null; }
+  const parts = path.startsWith("/") ? [] : link.closest("[data-vault]").dataset.vault.split("/").slice(0, -1);
+  path.split("/").forEach(part => { if (part === "..") parts.pop(); else if (part && part !== ".") parts.push(part); });
+  return parts.join("/");
+}
+
+// Opens a markdown file of the vault in the reader (GET /api/vault).
+async function openVaultFile(path) {
+  // Another kind of file (a PDF, an image) is in the vault too, but the reader only shows markdown: it says so
+  // instead of sending the browser to an address the server does not have.
+  const isMarkdown = /\.md$/i.test(path);
+  let doc = null;
+  try {
+    const response = isMarkdown && await fetch(`/api/vault?path=${encodeURIComponent(path)}`);
+    if (response?.ok) doc = await response.json();
+  } catch { }
+  if (readerTrail.at(-1) !== path) readerTrail.push(path);
+  showDialog(doc?.file ?? path, doc ? markdown(docText(doc)) : `<p class="bad">${esc(t(isMarkdown ? "fileMissing" : "fileNotMarkdown")(path))}</p>`, doc?.file ?? path);
 }
 
 // A comment thread of a pull request, whole: its file and line, a link to Azure DevOps and its comments.
@@ -841,7 +886,7 @@ function filePanel(report, { translate, action, missing }) {
     <div class="panel-bar"><span>${[doc.file.split("/").pop(), t("updatedAgo")(ago(fields.updated || doc.updated)), sessions && t("writtenBySessions")(sessions),
         !report.fr && !frenchOnly && t("englishOnly")].filter(Boolean).map(esc).join(" · ")}</span>
       <span class="row-actions">${language}${action || ""}</span></div>
-    <div class="markdown">${markdown(body)}</div></section>`;
+    <div class="markdown" data-vault="${esc(doc.file)}">${markdown(body)}</div></section>`;
 }
 
 // A working file of the PBI, with a button that runs Claude on this step again.
@@ -940,7 +985,7 @@ function questionCard(q, showPbi) {
     : state === "waiting" ? `${button("answer", "qAnswer", "primary")}${button("decide", "qDecide")}${toggle}${button("new", "qFollowUp", "link")}${setState("dropped", "qDrop")}`
     : `${toggle}${button("new", "qFollowUp", "link")}${setState(q.asked ? "waiting" : "draft", "qReopen")}`;
   const form = questionForm?.file === q.file && questionForm.kind !== "new";
-  return `<article class="row pad question ${state}" data-qcard="${esc(q.file)}">
+  return `<article class="row pad question ${state}" data-qcard="${esc(q.file)}" data-vault="${esc(q.file)}">
     <div class="row-meta">${pill(state === "waiting" ? "TODO" : state === "resolved" ? "OK" : "", [t("qStates")[state], state === "waiting" && ago(q.asked || q.updated), chase && t("qChase")].filter(Boolean).join(" · "))}<span>${meta}</span></div>
     <h3>${esc(q.title)}</h3>
     ${open && q.question ? `<div class="markdown">${markdown(q.question)}</div>` : ""}
@@ -1455,6 +1500,9 @@ document.getElementById("pbiReview").onsubmit = event => {
 document.getElementById("pbiReviewId").oninput = clearReviewError;
 document.getElementById("reviewKind").onchange = () => { clearReviewError(); updateReviewPlaceholder(); };
 document.addEventListener("click", e => {
+  // A link to another markdown file of the vault opens in the reader instead of leaving the page.
+  const vaultLink = e.target.closest("[data-vault] a[href]"), vaultFile = vaultLink && vaultPath(vaultLink);
+  if (vaultFile) { e.preventDefault(); openVaultFile(vaultFile); }
   const doc = e.target.closest("[data-doc]");
   if (doc) openDocument(doc.dataset.doc);
   const claude = e.target.closest("[data-claude]");
@@ -1467,6 +1515,8 @@ document.addEventListener("click", e => {
   questionClick(e);
 });
 document.getElementById("reviewClose").onclick = () => document.getElementById("reviewDialog").close();
+document.getElementById("reviewDialog").onclose = () => readerTrail.length = 0;
+document.getElementById("reviewBack").onclick = () => { readerTrail.pop(); openVaultFile(readerTrail.at(-1)); };
 translatePage();
 load();
 route();
