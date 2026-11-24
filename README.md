@@ -224,9 +224,14 @@ read, its history is empty and the rest of the page still loads (the error goes 
 
 | Status | Pull request I review | My own pull request |
 | :----- | :-------------------- | :------------------ |
-| To do | I have not voted yet | conflicts, draft, CI failed or expired, open threads, a reviewer waiting for me, or approved and ready to merge |
-| Waiting | I voted "waiting for author" | waiting for the reviewers, or approved while the CI still runs |
+| To do | "To review": I have neither commented nor voted. "To review again": the author pushed commits or answered after my last comment or vote | conflicts, draft, CI failed or expired, open threads, a reviewer waiting for me, or approved and ready to merge |
+| Waiting | "Reviewed, waiting for the author": I commented (or voted "waiting for author") and nothing came after | waiting for the reviewers, or approved while the CI still runs |
 | Done | I approved | merged or abandoned |
+
+For a pull request I review, the server reads who acted last from its threads: my last comment or vote, against the
+last push (the `RefUpdate` system threads) and the author's last comment. A pull request I reviewed therefore leaves
+the "to do" counter by itself, and comes back when there is something new to look at. A push counts whoever made it,
+and a vote that a push reset to "no vote" leaves the pull request "to review again".
 
 A PBI takes the most urgent status of its active pull requests. Without an active pull request it is
 **in progress**, or **waiting** when it is On Hold or already in Code review or Testing.

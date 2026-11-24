@@ -261,6 +261,7 @@ const texts = {
     reviewerWaiting: "un relecteur t'attend", approvedCiRunning: "approuvée, CI en cours",
     readyToMerge: "approuvée, prête à fusionner", waitingReviewers: "en attente des relecteurs",
     toReview: "à relire", waitingAuthor: "en attente de l'auteur", approvedByMe: "approuvée par moi",
+    reviewed: "déjà relue, en attente de l'auteur", reviewAgainPush: "à revoir : nouveaux commits", reviewAgainReply: "à revoir : l'auteur a répondu",
     votes: { 10: "a approuvé", 5: "a approuvé avec suggestions", 0: "n'a pas voté", "-5": "attend l'auteur", "-10": "a rejeté" },
     myVotes: { 10: "j'ai approuvé", 5: "j'ai approuvé avec suggestions", 0: "je n'ai pas encore voté", "-5": "j'attends l'auteur", "-10": "j'ai rejeté" },
     votesLabel: "Votes :", noReviewer: "aucun relecteur", conflictsBadge: "conflits", draftBadge: "brouillon",
@@ -341,6 +342,7 @@ const texts = {
     reviewerWaiting: "a reviewer is waiting for you", approvedCiRunning: "approved, CI running",
     readyToMerge: "approved, ready to merge", waitingReviewers: "waiting for reviewers",
     toReview: "to review", waitingAuthor: "waiting for the author", approvedByMe: "approved by me",
+    reviewed: "reviewed, waiting for the author", reviewAgainPush: "to review again: new commits", reviewAgainReply: "to review again: the author answered",
     votes: { 10: "approved", 5: "approved with suggestions", 0: "has not voted", "-5": "waits for the author", "-10": "rejected" },
     myVotes: { 10: "I approved", 5: "I approved with suggestions", 0: "I have not voted yet", "-5": "I wait for the author", "-10": "I rejected" },
     votesLabel: "Votes:", noReviewer: "no reviewer", conflictsBadge: "conflicts", draftBadge: "draft",
@@ -436,9 +438,14 @@ function prAction(pr) {
     return ["WAIT", t("waitingReviewers")];
   }
   const me = pr.reviewers.find(r => r.isMe);
-  if (!me || me.vote === 0) return ["TODO", t("toReview")];
-  if (me.vote < 0) return ["WAIT", t("waitingAuthor")];
-  return ["OK", t("approvedByMe")];
+  if (me?.vote > 0) return ["OK", t("approvedByMe")];
+  // Not approved yet: to review until I comment or vote, then waiting for the author, and back to me as soon as
+  // the author pushes or answers after my last action.
+  const after = date => date && new Date(date) > new Date(pr.myLastAction);
+  if (!pr.myLastAction) return me?.vote < 0 ? ["WAIT", t("waitingAuthor")] : ["TODO", t("toReview")];
+  if (after(pr.lastPush)) return ["TODO", t("reviewAgainPush")];
+  if (after(pr.authorLastComment)) return ["TODO", t("reviewAgainReply")];
+  return ["WAIT", me?.vote < 0 ? t("waitingAuthor") : t("reviewed")];
 }
 
 // What a PBI asks of me, as [status, reason]: the most urgent of its active PRs, else its state.

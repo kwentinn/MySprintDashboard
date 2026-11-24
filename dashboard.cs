@@ -718,6 +718,7 @@ async Task<JsonObject> PullRequestAsync(int id)
     int? openThreads = null, totalThreads = null;
     List<JsonObject> openThreadList = [];
     JsonObject? ci = null;
+    DateTimeOffset? myLastAction = null, lastPush = null, authorLastComment = null;
     // Last activity: creation, closing, or the last change of any thread, system ones included (pushes, votes).
     var activity = new List<DateTimeOffset?> { (DateTimeOffset?)pr["creationDate"], (DateTimeOffset?)pr["closedDate"] };
     if (status == "active")
@@ -733,6 +734,26 @@ async Task<JsonObject> PullRequestAsync(int id)
         var open = discussions.Where(thread => (string?)thread!["status"] is "active" or "pending").ToList();
         openThreads = open.Count;
         openThreadList = [.. open.Select(thread => OpenThread(thread!, id, repository))];
+
+        // Who acted last, for a pull request I review: my last comment or vote, against the last push (RefUpdate
+        // system threads) and the author's last comment. The page tells "reviewed, waiting" from "to review again".
+        string? Property(JsonNode thread, string name) => (string?)thread["properties"]?[name]?["$value"];
+        var authorId = (string?)pr["createdBy"]?["id"];
+        var comments = threads["value"]!.AsArray()
+            .Where(thread => (bool?)thread!["isDeleted"] != true)
+            .SelectMany(thread => thread!["comments"]?.AsArray() ?? [])
+            .Where(comment => (bool?)comment!["isDeleted"] != true && (string?)comment["commentType"] != "system")
+            .ToList();
+        DateTimeOffset? LastCommentBy(string? authorOfComment) => comments
+            .Where(comment => (string?)comment!["author"]?["id"] == authorOfComment)
+            .Select(comment => (DateTimeOffset?)comment!["publishedDate"]).Max();
+        DateTimeOffset? LastThread(Func<JsonNode, bool> match) => threads["value"]!.AsArray()
+            .Where(thread => match(thread!)).Select(thread => (DateTimeOffset?)thread!["publishedDate"]).Max();
+        var myLastVote = LastThread(thread => Property(thread, "CodeReviewThreadType") == "VoteUpdate"
+            && (string?)thread["identities"]?[Property(thread, "CodeReviewVotedByIdentity") ?? ""]?["id"] == myId);
+        myLastAction = new[] { LastCommentBy(myId), myLastVote }.Max();
+        lastPush = LastThread(thread => Property(thread, "CodeReviewThreadType") == "RefUpdate");
+        authorLastComment = authorId is null ? null : LastCommentBy(authorId);
     }
 
     var reviewers = (pr["reviewers"]?.AsArray() ?? [])
@@ -761,6 +782,9 @@ async Task<JsonObject> PullRequestAsync(int id)
         ["createdDate"] = (string?)pr["creationDate"],
         ["closedDate"] = (string?)pr["closedDate"],
         ["lastActivity"] = activity.Max()?.ToString("O"),
+        ["myLastAction"] = myLastAction?.ToString("O"),
+        ["lastPush"] = lastPush?.ToString("O"),
+        ["authorLastComment"] = authorLastComment?.ToString("O"),
         ["openThreads"] = openThreads,
         ["totalThreads"] = totalThreads,
         ["threads"] = new JsonArray([.. openThreadList]),
