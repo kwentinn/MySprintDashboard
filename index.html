@@ -352,7 +352,7 @@ const texts = {
     qSaveAnswer: "Enregistrer la réponse", qSaveAsk: "Passer en attente de réponse", qSaveNew: "Enregistrer dans le vault", qCancel: "Annuler",
     qPbi: "Rattachée à", qFollowsField: "Suite de (facultatif)", qTitle: "Titre",
     qText: "Question (Markdown : les options, ma préférence, le défaut appliqué sans réponse)", qAlreadyAsked: "Je l'ai déjà posée",
-    qSaveFailed: message => `Enregistrement impossible : ${message}`, qNone: "Aucune question pour ce PBI", qEmptyFilter: "Aucune question dans cette liste.",
+    qSaveFailed: message => `Enregistrement impossible : ${message}`, qNone: "Aucune question pour ce PBI", qEmptyFilter: "Aucune question dans cette liste.", qReadIndex: "Lire l'index",
   },
   en: {
     locale: "en-GB", day: "d", title: "Today", since: age => `${age} ago`,
@@ -451,7 +451,7 @@ const texts = {
     qSaveAnswer: "Save the answer", qSaveAsk: "Mark as waiting for an answer", qSaveNew: "Save in the vault", qCancel: "Cancel",
     qPbi: "Belongs to", qFollowsField: "Follows (optional)", qTitle: "Title",
     qText: "Question (Markdown: the options, my preference, the default applied if unanswered)", qAlreadyAsked: "I already asked it",
-    qSaveFailed: message => `Could not save: ${message}`, qNone: "No question for this PBI", qEmptyFilter: "No question in this list.",
+    qSaveFailed: message => `Could not save: ${message}`, qNone: "No question for this PBI", qEmptyFilter: "No question in this list.", qReadIndex: "Read the index",
   },
 };
 
@@ -559,7 +559,7 @@ function registerDocuments() {
     const meta = fields.session ? `*${t("writtenBy")(ago(fields.updated || doc.updated), fields.sessions || fields.session)}*\n\n` : "";
     documents.set(key, { file: `${doc.file} · ${label}`, markdown: meta + body });
   };
-  lastData.workItems.forEach(item => add(`pbi:${item.id}:00-status`, item.files?.["00-status"], `#${item.id}`));
+  lastData.workItems.forEach(item => ["00-status", "06-open-questions"].forEach(step => add(`pbi:${item.id}:${step}`, item.files?.[step], `#${item.id}`)));
 }
 
 function openDocument(key) {
@@ -763,6 +763,7 @@ function render() {
     .join("");
   todoCount = count("TODO");
   updateTabIcon();
+  renderQuestions();
   renderPbi();
   renderPr();
 }
@@ -781,7 +782,7 @@ function renderPbi() {
   if (!item) { view.innerHTML = `<div>${backLink()}</div><div class="empty">${esc(t("pbiNotFound")(pbiRoute.id))}</div>`; return; }
 
   const [status] = itemAction(item);
-  const state = statusOf(item);
+  const state = statusOf(item), keptForm = formValues(view);
   const tabs = [...pbiSteps, ...(item.pullRequests.length ? ["pr"] : []), "history"];
   const tab = tabs.includes(pbiRoute.tab) ? pbiRoute.tab
     : item.files?.[state?.fields.step] ? state.fields.step : pbiSteps.find(step => item.files?.[step]) ?? pbiSteps[0];
@@ -794,7 +795,7 @@ function renderPbi() {
       : name === state?.fields.step ? pill("step", t("currentStep"), "small")
       : name === "pr" && openThreads ? pill("TODO", t("openThreads")(openThreads), "small") : "";
     return `${name === "pr" || (name === "history" && !tabs.includes("pr")) ? '<span class="sep" aria-hidden="true"></span>' : ""}
-      <a href="#pbi/${item.id}/${name}" role="tab" aria-selected="${name === tab}" class="${name === tab ? "on" : ""} ${step && !(name === "06-open-questions" ? questions.some(q => q.pbi === item.id) : item.files?.[name]) ? "missing" : ""}">${esc(label)}${tag}</a>`;
+      <a href="#pbi/${item.id}/${name}" role="tab" aria-selected="${name === tab}" class="${name === tab ? "on" : ""} ${step && !item.files?.[name] && !(name === "06-open-questions" && questions.some(q => q.pbi === item.id)) ? "missing" : ""}">${esc(label)}${tag}</a>`;
   };
   const description = [item.description, item.acceptanceCriteria && `<h4>${esc(t("acceptance"))}</h4>${item.acceptanceCriteria}`].filter(Boolean).join("");
   const firstLine = state && plainText(state.body.split(/\r?\n/).find(line => line.trim()) ?? "");
@@ -817,6 +818,7 @@ function renderPbi() {
       <span class="row-actions">${item.lastSession && !implemented(item) ? claudeButton("pbi", item.id, "claudePbi", "", "link") : ""}${pbiPrimary(item, "primary")}</span></section>
     <div class="steptabs" role="tablist">${tabs.map(tabLink).join("")}</div>
     ${tab === "pr" ? pullRequestsPanel(item) : tab === "history" ? historyPanel(item) : tab === "06-open-questions" ? questionsPanel(item) : stepPanel(item, tab)}`;
+  restoreForm(view, keptForm);
   finishPage(view);
 }
 
@@ -855,7 +857,8 @@ function stepPanel(item, step) {
 // resolved by an answer or dropped. The Questions view lists them all, the Questions tab of a PBI lists its own, and
 // the forms write the files through POST /api/questions/<action>, which answers the new list.
 let questions = [], questionForm = null, questionFilter = "waiting";
-const shownQuestions = new Set();
+// Questions unfolded or folded by hand (file -> shown); the others follow the default of their view.
+const shownQuestions = new Map();
 const questionRank = { waiting: 0, draft: 1, resolved: 2, dropped: 3 };
 const questionChannels = ["ado", "teams", "email", "kb", "call", "other"];
 const stateOf = q => q.state in questionRank ? q.state : "draft";
@@ -884,6 +887,28 @@ function setQuestions(list) {
   drawQuestions();
 }
 const drawQuestions = () => { renderQuestions(); renderPbi(); };
+// What is typed in an open question form survives a redraw of its view: taken before, put back in the same form after.
+function formValues(view) {
+  const form = view.querySelector("form.qform");
+  return form && { key: form.dataset.qsubmit + form.dataset.file, busy: form.dataset.busy,
+    fields: [...form.elements].filter(field => field.name).map(field => ({ name: field.name, type: field.type, value: field.value, checked: field.checked })) };
+}
+function restoreForm(view, kept) {
+  const form = view.querySelector("form.qform");
+  if (!kept || !form || form.dataset.qsubmit + form.dataset.file !== kept.key) return;
+  kept.fields.forEach(({ name, type, value, checked }) => {
+    const field = type === "radio" ? [...form.querySelectorAll(`[name="${name}"]`)].find(radio => radio.value === value) : form.elements[name];
+    if (!field) return;
+    if (type === "radio" || type === "checkbox") field.checked = checked;
+    else field.value = value;
+    if (name === "pbi") form.elements.follows.innerHTML = followsOptions(Number(value) || null, "");
+    if (name === "askedNow") askedToggle(form, checked);
+  });
+  if (kept.busy) setBusy(form, true);
+}
+const askedToggle = (form, on) => { const fields = form.querySelector("[data-asked-fields]"); fields.hidden = fields.disabled = !on; };
+// A form being saved cannot be sent again.
+const setBusy = (form, on) => { form.dataset.busy = on ? "1" : ""; form.querySelector("[type=submit]").disabled = on; };
 function updateQuestionsTab() {
   const waiting = questions.filter(q => stateOf(q) === "waiting").length;
   document.getElementById("questionsTab").innerHTML = esc(t("tabQuestions")) + (waiting ? pill("TODO", waiting, "small") : "");
@@ -895,7 +920,7 @@ function questionCard(q, showPbi) {
   const state = stateOf(q);
   const chase = state === "waiting" && Date.now() - askedTime(q) > 7 * 864e5;
   const item = lastData?.workItems.find(workItem => workItem.id === q.pbi);
-  const related = other => `<a class="link" href="#" data-qtoggle="${esc(other.file)}" title="${esc(other.title)}">${esc(questionNumber(other))}</a>`;
+  const related = other => `<a class="link" href="#" data-qshow="${esc(other.file)}" title="${esc(other.title)}">${esc(questionNumber(other))}</a>`;
   const follows = q.follows && questions.find(other => other.pbi === q.pbi && other.name === q.follows);
   const followers = questions.filter(other => other.pbi === q.pbi && other.follows === q.name);
   const meta = [
@@ -907,15 +932,15 @@ function questionCard(q, showPbi) {
     followers.length && `${esc(t("qLedTo"))} ${followers.map(related).join(", ")}`,
   ].filter(Boolean).join(" · ");
   // The text of the question shows at once in the tab of its PBI while it is open, and on demand elsewhere.
-  const open = shownQuestions.has(q.file) !== (!showPbi && questionRank[state] < 2);
+  const open = shownQuestions.get(q.file) ?? (!showPbi && questionRank[state] < 2);
   const button = (kind, label, cls = "") => `<button class="${cls}" data-qform="${kind}" data-file="${esc(q.file)}">${esc(t(label))}</button>`;
   const setState = (value, label) => `<button class="link" data-qstate="${value}" data-file="${esc(q.file)}">${esc(t(label))}</button>`;
-  const toggle = `<button class="link" data-qtoggle="${esc(q.file)}">${esc(t(open ? "qHide" : "qShow"))}</button>`;
+  const toggle = `<button class="link" data-qtoggle="${esc(q.file)}" data-open="${open}">${esc(t(open ? "qHide" : "qShow"))}</button>`;
   const actions = state === "draft" ? `${button("ask", "qIAsked")}<button data-qcopy="${esc(q.file)}">${esc(t("qCopy"))}</button>${toggle}${setState("dropped", "qDrop")}`
     : state === "waiting" ? `${button("answer", "qAnswer", "primary")}${button("decide", "qDecide")}${toggle}${button("new", "qFollowUp", "link")}${setState("dropped", "qDrop")}`
     : `${toggle}${button("new", "qFollowUp", "link")}${setState(q.asked ? "waiting" : "draft", "qReopen")}`;
   const form = questionForm?.file === q.file && questionForm.kind !== "new";
-  return `<article class="row pad question ${state}" id="q-${esc(q.file)}">
+  return `<article class="row pad question ${state}" data-qcard="${esc(q.file)}">
     <div class="row-meta">${pill(state === "waiting" ? "TODO" : state === "resolved" ? "OK" : "", [t("qStates")[state], state === "waiting" && ago(q.asked || q.updated), chase && t("qChase")].filter(Boolean).join(" · "))}<span>${meta}</span></div>
     <h3>${esc(q.title)}</h3>
     ${open && q.question ? `<div class="markdown">${markdown(q.question)}</div>` : ""}
@@ -978,7 +1003,7 @@ function renderQuestions() {
   const filters = { waiting: ["waiting"], draft: ["draft"], closed: ["resolved", "dropped"] };
   const inFilter = key => questions.filter(q => filters[key].includes(stateOf(q)));
   const waiting = sortQuestions(inFilter("waiting")), shown = sortQuestions(inFilter(questionFilter));
-  const view = document.getElementById("questionsView");
+  const view = document.getElementById("questionsView"), kept = formValues(view);
   view.innerHTML = `<div class="head-row">
       <div><h2>${esc(t("qHeadline")(waiting.length))}</h2>
         <div class="muted">${esc(cap([waiting.length && t("qOldest")(ago(waiting[0].asked || waiting[0].updated)), t("qDraftsToAsk")(inFilter("draft").length)].filter(Boolean).join(" · ")))}</div></div>
@@ -988,6 +1013,7 @@ function renderQuestions() {
     ${questionForm?.kind === "new" ? newQuestionForm(questionForm) : ""}
     <div class="list">${shown.map(q => questionCard(q, true)).join("") || `<div class="empty">${esc(t("qEmptyFilter"))}</div>`}</div>`;
   view.querySelectorAll(".markdown a").forEach(a => a.target = "_blank");
+  restoreForm(view, kept);
 }
 
 // The Questions tab of a PBI: its questions, a new one, or Claude to draft them (the step 06-open-questions).
@@ -996,11 +1022,14 @@ function questionsPanel(item) {
   const claude = `<button data-claude="step/${item.id}" data-query="&amp;step=06-open-questions" data-label="claudeQuestions">${esc(t("claudeQuestions"))}</button>`;
   const add = `<button class="primary" data-qform="new" data-pbi="${item.id}">${esc(t("qNew"))}</button>`;
   const form = questionForm?.kind === "new" ? newQuestionForm(questionForm) : "";
+  // A file with no question file next to it is in the older format, its questions inline: shown as the file it is.
+  const index = item.files?.["06-open-questions"];
+  if (!list.length && index) return `<div class="head-row"><span></span><span class="row-actions">${add}</span></div>${form}${stepPanel(item, "06-open-questions")}`;
   if (!list.length) return `${form}<section class="row empty-step"><h2>${esc(t("qNone"))}</h2>
     <p class="muted">${esc(t("stepHelp")["06-open-questions"])}</p><div class="row-actions">${add}${claude}</div></section>`;
   const counts = Object.keys(questionRank).map(state => [state, list.filter(q => stateOf(q) === state).length]).filter(([, count]) => count)
     .map(([state, count]) => t("qCounts")[state](count)).join(" · ");
-  return `<div class="head-row"><span class="muted">${esc(counts)}</span><span class="row-actions">${claude}${add}</span></div>
+  return `<div class="head-row"><span class="muted">${esc(counts)}${index ? ` · ${docLink(`pbi:${item.id}:06-open-questions`, t("qReadIndex"))}` : ""}</span><span class="row-actions">${claude}${add}</span></div>
     ${form}<div class="list">${list.map(q => questionCard(q, false)).join("")}</div>`;
 }
 
@@ -1010,35 +1039,43 @@ async function postQuestion(action, body, form) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || response.statusText);
     questionForm = null;
+    dropForms();
     document.getElementById("error").style.display = "none";
     setQuestions(data);
   } catch (e) {
+    if (form?.isConnected) setBusy(form, false);
     const note = form?.querySelector(".note") ?? document.getElementById("error");
     note.textContent = t("qSaveFailed")(e.message);
     note.style.display = "block";
   }
 }
 
+// A form that is opened or closed starts from its own values, not from what the form it replaces held.
+const dropForms = () => document.querySelectorAll("form.qform").forEach(form => form.remove());
 // Clicks on the question cards and forms (called by the page's click listener).
 function questionClick(e) {
   const pick = name => e.target.closest(`[data-${name}]`);
-  const formButton = pick("qform"), toggle = pick("qtoggle"), filter = pick("qfilter"), state = pick("qstate"), copy = pick("qcopy");
+  const formButton = pick("qform"), toggle = pick("qtoggle"), show = pick("qshow"), filter = pick("qfilter"), state = pick("qstate"), copy = pick("qcopy");
   if (formButton) {
     // "New" from a card is a follow-up of its question; from the tab of a PBI it is a question of that PBI.
     const q = questions.find(other => other.file === formButton.dataset.file);
     questionForm = formButton.dataset.qform === "new"
       ? { kind: "new", pbi: q?.pbi ?? (Number(formButton.dataset.pbi) || null), follows: q?.name ?? "" }
       : { kind: formButton.dataset.qform, file: q.file };
+    dropForms();
     drawQuestions();
     [...document.querySelectorAll(".qform")].find(form => form.offsetParent)?.scrollIntoView({ block: "center" });
   }
-  if (pick("qcancel")) { questionForm = null; drawQuestions(); }
-  if (toggle) {
+  if (pick("qcancel")) { questionForm = null; dropForms(); drawQuestions(); }
+  if (toggle) { shownQuestions.set(toggle.dataset.qtoggle, toggle.dataset.open !== "true"); drawQuestions(); }
+  if (show) {
+    // The question another one follows or led to: unfolded, under the filter that holds it, and scrolled to.
     e.preventDefault();
-    const file = toggle.dataset.qtoggle;
-    shownQuestions.has(file) ? shownQuestions.delete(file) : shownQuestions.add(file);
+    const q = questions.find(other => other.file === show.dataset.qshow);
+    shownQuestions.set(q.file, true);
+    questionFilter = { waiting: "waiting", draft: "draft" }[stateOf(q)] ?? "closed";
     drawQuestions();
-    if (toggle.tagName === "A") document.getElementById(`q-${file}`)?.scrollIntoView({ block: "center" });
+    [...document.querySelectorAll("[data-qcard]")].find(card => card.dataset.qcard === q.file && card.offsetParent)?.scrollIntoView();
   }
   if (filter) { questionFilter = filter.dataset.qfilter; renderQuestions(); }
   if (state) postQuestion("state", { file: state.dataset.file, state: state.dataset.qstate });
@@ -1054,7 +1091,9 @@ document.addEventListener("submit", e => {
   const form = e.target.closest("form.qform");
   if (!form) return;
   e.preventDefault();
+  if (form.dataset.busy) return;
   const body = Object.fromEntries(new FormData(form));
+  setBusy(form, true);
   if (form.dataset.file) body.file = form.dataset.file;
   if (form.dataset.qsubmit === "create") {
     body.pbi = Number(body.pbi) || null;
@@ -1066,10 +1105,7 @@ document.addEventListener("change", e => {
   const form = e.target.closest("form.qform");
   if (!form) return;
   // "Already asked" opens the fields that say to whom and where; another PBI offers its own questions to follow.
-  if (e.target.matches("[data-qasked]")) {
-    const fields = form.querySelector("[data-asked-fields]");
-    fields.hidden = fields.disabled = !e.target.checked;
-  }
+  if (e.target.matches("[data-qasked]")) askedToggle(form, e.target.checked);
   if (e.target.name === "pbi") form.elements.follows.innerHTML = followsOptions(Number(e.target.value) || null, "");
 });
 

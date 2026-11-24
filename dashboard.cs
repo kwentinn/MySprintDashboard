@@ -953,10 +953,15 @@ static JsonArray Questions()
     var pbis = Path.Combine(Vault, "PBIs");
     if (Directory.Exists(pbis))
         foreach (var directory in Directory.GetDirectories(pbis, "pbi-*").Select(pbi => Path.Combine(pbi, "questions")).Where(Directory.Exists))
-            files.AddRange(Directory.GetFiles(directory, "q*.md"));
-    if (Directory.Exists(QuestionsDirectory(null))) files.AddRange(Directory.GetFiles(QuestionsDirectory(null), "q-*.md"));
+            files.AddRange(QuestionFiles(directory));
+    if (Directory.Exists(QuestionsDirectory(null))) files.AddRange(QuestionFiles(QuestionsDirectory(null)));
     return new JsonArray([.. files.Order().Select(Question)]);
 }
+
+// The question files of a folder: "q<NN>-<slug>.md" or "q-<date>-<slug>.md". Not the index Questions.md (the file
+// system ignores case), and not a "q*.fr.md" a session wrote anyway: a question has no French copy (rule Questions).
+static IEnumerable<string> QuestionFiles(string directory) =>
+    Directory.GetFiles(directory, "q*.md").Where(file => Regex.IsMatch(Path.GetFileName(file), @"^q\d*-[\w-]*\.md$"));
 
 static JsonObject Question(string path)
 {
@@ -1074,7 +1079,7 @@ static void CreateQuestion(int? workItemId, string title, string question, strin
     // Accents go (decomposed, then their marks dropped), the rest becomes hyphens.
     var slug = Regex.Replace(Regex.Replace(title.Normalize(NormalizationForm.FormD).ToLowerInvariant(), @"\p{M}", ""), "[^a-z0-9]+", "-").Trim('-');
     slug = slug.Length > 48 ? slug[..48].TrimEnd('-') : slug.Length > 0 ? slug : "question";
-    var number = Directory.GetFiles(directory, "q*.md").Select(file => Regex.Match(Path.GetFileName(file), @"^q(\d+)-"))
+    var number = QuestionFiles(directory).Select(file => Regex.Match(Path.GetFileName(file), @"^q(\d+)-"))
         .Where(match => match.Success).Select(match => int.Parse(match.Groups[1].Value)).DefaultIfEmpty(0).Max() + 1;
     var name = workItemId is null ? $"q-{DateTime.Today:yyyy-MM-dd}-{slug}" : $"q{number:00}-{slug}";
     var heading = workItemId is null ? title : $"Q{number} - {title}";
@@ -1268,7 +1273,7 @@ static string PbiFilesInstruction(int workItemId, string sessionId, string langu
     $"in the frontmatter of every file you write): {steps}. If these files already exist, read them first and complete " +
     "them without erasing their history. " +
     (language == "fr"
-        ? "Write the French copy (.fr.md) of each file next to it. Answer me in French."
+        ? "Write the French copy (.fr.md) of each working file next to it (a question file has none, only the index 06-open-questions.md). Answer me in French."
         : "Answer me in English.");
 
 // A report starts with the same YAML frontmatter as the PBI working files (rule in the workspace CLAUDE.md).
