@@ -24,7 +24,12 @@ const string ApiVersion = "api-version=7.1";
 var portIndex = Array.IndexOf(args, "--port");
 var Url = $"http://localhost:{(portIndex >= 0 && portIndex + 1 < args.Length ? int.Parse(args[portIndex + 1]) : 5099)}";
 
-if (Settings.Load(Path.Combine(SourceDirectory(), "dashboard.settings.json")) is { } settingsError)
+// A published executable with index.html next to it is on its own: it reads the page and the settings from its own
+// folder and opens the browser when it starts. Otherwise (dotnet run) they come from the folder of this file.
+var standalone = File.Exists(Path.Combine(AppContext.BaseDirectory, "index.html"));
+var home = standalone ? AppContext.BaseDirectory : SourceDirectory();
+
+if (Settings.Load(Path.Combine(home, "dashboard.settings.json")) is { } settingsError)
 {
     Console.Error.WriteLine(settingsError);
     return 1;
@@ -45,7 +50,7 @@ builder.WebHost.UseUrls(Url);
 builder.Logging.SetMinimumLevel(LogLevel.Warning);
 var app = builder.Build();
 
-var page = Path.Combine(SourceDirectory(), "index.html");
+var page = Path.Combine(home, "index.html");
 app.MapGet("/", () => Results.Content(File.ReadAllText(page), "text/html; charset=utf-8"));
 app.MapGet("/api/today", async () =>
 {
@@ -157,6 +162,9 @@ app.MapPost("/api/sessions/{kind}/{id:int}", async (HttpRequest request, string 
 });
 
 Console.WriteLine($"Dashboard on {Url} (Ctrl+C to stop)");
+if (standalone)
+    app.Lifetime.ApplicationStarted.Register(() =>
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(Url) { UseShellExecute = true }));
 await app.RunAsync();
 return 0;
 

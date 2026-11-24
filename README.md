@@ -62,6 +62,23 @@ Then open http://localhost:5099. The first start compiles the program, which tak
 The page refreshes every 10 minutes. Use the refresh button to refresh at once, or `?refresh=<seconds>` to change the
 interval (for example http://localhost:5099/?refresh=120).
 
+### As an executable
+
+To start the dashboard with a double-click, publish it once as a single executable (it uses the installed .NET 10
+runtime) and copy it into this folder, where git ignores it:
+
+```powershell
+dotnet publish dashboard.cs -o $env:TEMP\dashboard-publish -r win-x64 -p:PublishAot=false -p:PublishSingleFile=true --self-contained false
+Copy-Item $env:TEMP\dashboard-publish\dashboard.exe .
+```
+
+With `index.html` next to it, `dashboard.exe` reads the page and `dashboard.settings.json` from its own folder and
+opens the browser when it starts; here that is this folder, so a change of the page shows at once. Publish again
+after a change of `dashboard.cs`. The executable can live elsewhere with a copy of both files; set `workspace` in
+its settings then, if the folder of the checkouts is not the parent of this repository. Without `index.html` next to
+it, the executable reads both files from this repository, like `dotnet run`, and does not open the browser. The default native (AOT) publish also works, with the Desktop
+Development for C++ workload of Visual Studio installed.
+
 ## Language
 
 The page is in English or French; pick one with the selector at the top right. The choice is kept in the browser
