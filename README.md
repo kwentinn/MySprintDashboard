@@ -73,24 +73,29 @@ interval (for example http://localhost:5099/?refresh=120).
 
 ### As an executable
 
-To start the dashboard with a double-click, publish it once as a single executable (it uses the installed .NET 10
-runtime) and copy it into this folder, where git ignores it:
+To start the dashboard with a double-click, publish it as a single executable (it uses the installed .NET 10
+runtime) into the `publish` folder, which git ignores:
 
 ```powershell
-dotnet publish dashboard.csproj -o $env:TEMP\dashboard-publish -r win-x64 -p:PublishAot=false -p:PublishSingleFile=true --self-contained false
-Copy-Item $env:TEMP\dashboard-publish\dashboard.exe .
+.\publish.ps1
 ```
 
-`.\publish.ps1` does both again after a change of the server's code: it publishes, stops the `dashboard.exe` of this
-folder if it runs (a running executable cannot be replaced), copies the new one and starts it (`-NoStart` leaves it
-stopped). If the build fails, the running dashboard is left alone.
+The script stops the dashboard of this repository if it runs (a running executable cannot be replaced), publishes
+straight into `publish`, copies `index.html` and `dashboard.settings.json` next to `dashboard.exe`, and starts it
+(`-NoStart` leaves it stopped). If the build fails, the executable is unchanged and the dashboard that was stopped
+is started again. By hand, it is:
+
+```powershell
+dotnet publish dashboard.csproj -o publish -r win-x64 -p:PublishAot=false -p:PublishSingleFile=true --self-contained false
+Copy-Item index.html, dashboard.settings.json publish
+```
 
 With `index.html` next to it, `dashboard.exe` reads the page and `dashboard.settings.json` from its own folder and
-opens the browser when it starts; here that is this folder, so a change of the page shows at once. Publish again
-after a change of the server's code. The executable can live elsewhere with a copy of both files; set `workspace` in
-its settings then, if the folder of the checkouts is not the parent of this repository. Without `index.html` next to
-it, the executable reads both files from this repository, like `dotnet run`, and does not open the browser. The default native (AOT) publish also works, with the Desktop
-Development for C++ workload of Visual Studio installed.
+opens the browser when it starts. The `publish` folder is such a copy: publish again after a change of the server's
+code, of the page or of the settings. The folder can be copied elsewhere; set `workspace` in its settings then, if
+the folder of the checkouts is not the parent of this repository. Without `index.html` next to it, the executable
+reads both files from this repository, like `dotnet run`, and does not open the browser. The default native (AOT)
+publish also works, with the Desktop Development for C++ workload of Visual Studio installed.
 
 ## Language
 

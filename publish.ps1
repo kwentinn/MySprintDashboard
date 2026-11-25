@@ -1,26 +1,33 @@
-# Publishes the project again as dashboard.exe in this folder (see "As an executable" in the README).
-# A running dashboard.exe of this folder locks the file: it is stopped first, and started again once the new one is
-# in place. -NoStart leaves it stopped.
+# Publishes the dashboard into the publish\ folder (see "As an executable" in the README): dashboard.exe with a copy
+# of index.html and dashboard.settings.json next to it, so the folder runs on its own and opens the browser.
+# A running dashboard.exe locks its file: it is stopped first, and the new one is started. -NoStart leaves it stopped.
 #
 #   .\publish.ps1
 param([switch]$NoStart)
 
 $ErrorActionPreference = 'Stop'
-$exe = Join-Path $PSScriptRoot 'dashboard.exe'
-$output = Join-Path $env:TEMP 'dashboard-publish'
+$target = Join-Path $PSScriptRoot 'publish'
+$exe = Join-Path $target 'dashboard.exe'
 
-# Publish first: if the build fails, the running dashboard is left alone.
-dotnet publish (Join-Path $PSScriptRoot 'dashboard.csproj') -o $output -r win-x64 -p:PublishAot=false -p:PublishSingleFile=true --self-contained false
-if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed ($LASTEXITCODE): dashboard.exe is unchanged." }
-
-$running = @(Get-Process dashboard -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe })
+# The dashboard of this repository, wherever it runs from (publish\, or this folder for an older publish): its
+# file cannot be replaced while it runs, and two cannot listen on the same port.
+$running = @(Get-Process dashboard -ErrorAction SilentlyContinue | Where-Object { $_.Path -like (Join-Path $PSScriptRoot '*') })
+$wasRunning = $running | Select-Object -First 1 -ExpandProperty Path
 if ($running) {
     $running | Stop-Process -Force
     $running | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
 }
 
-Copy-Item (Join-Path $output 'dashboard.exe') $exe -Force
-Write-Host "dashboard.exe published ($((Get-Item $exe).LastWriteTime))."
+dotnet publish (Join-Path $PSScriptRoot 'dashboard.csproj') -o $target -r win-x64 -p:PublishAot=false -p:PublishSingleFile=true --self-contained false
+if ($LASTEXITCODE -ne 0) {
+    # A failed build leaves the executable as it was: the dashboard that was stopped is started again.
+    if ($wasRunning -and -not $NoStart) { Start-Process $wasRunning -WorkingDirectory (Split-Path $wasRunning) }
+    throw "dotnet publish failed ($LASTEXITCODE): publish\ is unchanged."
+}
 
-# Started again when it was running, and on a first publish; it opens the browser itself.
-if (-not $NoStart) { Start-Process $exe -WorkingDirectory $PSScriptRoot }
+# The page and the settings of this folder go with it: the executable reads them next to itself.
+Copy-Item (Join-Path $PSScriptRoot 'index.html'), (Join-Path $PSScriptRoot 'dashboard.settings.json') $target -Force
+Write-Host "Published in $target ($((Get-Item $exe).LastWriteTime))."
+
+# It opens the browser itself.
+if (-not $NoStart) { Start-Process $exe -WorkingDirectory $target }

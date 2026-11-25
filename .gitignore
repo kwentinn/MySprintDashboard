@@ -2,4 +2,5 @@ dashboard.settings.json
 bin/
 obj/
 dashboard.exe
+publish/
 .claude/
