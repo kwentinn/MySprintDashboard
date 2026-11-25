@@ -2,7 +2,7 @@ import { claudeButton, docLink, implemented, pbiPrimary, resumeThreadsButton, th
 import { shared } from "../state.js";
 import { itemAction, itemActivity, prAction, signals, votesText } from "../status.js";
 import { t } from "../texts.js";
-import { ago, cap, esc, markdown, orderPill, pbiSteps, pill, safeHtml, section, shortDateTime, statusOf } from "../util.js";
+import { ago, cap, esc, markdown, orderPill, pbiSteps, pill, safeHtml, shortDateTime, statusOf } from "../util.js";
 import { backLink, conversationHtml, finishPage, pagePlaceholder, plainText, stepPanel } from "./parts.js";
 import { formValues, questions, questionsPanel, restoreForm, stateOf } from "./questions.js";
 
@@ -57,7 +57,7 @@ export function renderPbi() {
 }
 
 // The pull requests of the PBI: what each asks, then its open comment threads whole. Resolved threads are only counted.
-export function pullRequestsPanel(item) {
+function pullRequestsPanel(item) {
   return `<div class="list">${item.pullRequests.map(pr => {
     const [status, hint] = prAction(pr);
     const active = pr.status === "active";
@@ -72,7 +72,7 @@ export function pullRequestsPanel(item) {
   }).join("")}</div>`;
 }
 
-export function historyPanel(item) {
+function historyPanel(item) {
   const text = event => ({
     created: () => t("evCreated")(event.to),
     state: () => t("evState")(event.from ?? "?", event.to),
@@ -91,7 +91,7 @@ export function historyPanel(item) {
 
 // History of a PBI: state, sprint and assignment changes from Azure DevOps, PRs created and closed, Claude sessions,
 // newest first.
-export function historyEvents(item) {
+function historyEvents(item) {
   const events = (item.history ?? []).map(event => ({ ...event }));
   item.pullRequests.forEach(pr => {
     if (pr.createdDate) events.push({ type: "prCreated", date: pr.createdDate, by: pr.author, pr: pr.id });

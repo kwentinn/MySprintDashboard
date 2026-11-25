@@ -1,12 +1,12 @@
 import { claudeButton } from "../claude.js";
 import { shared } from "../state.js";
-import { s, t } from "../texts.js";
-import { ago, esc, pill, section } from "../util.js";
+import { t } from "../texts.js";
+import { ago, esc, pill } from "../util.js";
 
 // Search (#search/<words>): the words typed in the header, looked for in Azure DevOps (work items and pull requests
 // of the project) and in the markdown files of the vault, by GET /api/search. A number alone, "#1201" or "!4215",
 // opens the page of that PBI or pull request when it is one of mine.
-export let searchQuery = "", searchData = null, searchLoading = false, searchScope = "all", searchClosed = false, searchFolder = "";
+let searchQuery = "", searchData = null, searchLoading = false, searchScope = "all", searchClosed = false, searchFolder = "";
 
 export async function loadSearch(query) {
   if (query !== searchQuery) { searchData = null; searchFolder = ""; }
@@ -33,7 +33,7 @@ export async function loadSearch(query) {
 
 // A text with the searched words marked. The text is cut at the words first and each piece escaped after, so a word
 // never matches inside an escaped character ("39" in "&#39;").
-export function highlight(text, words) {
+function highlight(text, words) {
   const found = words.filter(Boolean).map(word => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
   if (!found.length) return esc(text);
   return String(text).split(new RegExp(`(${found.join("|")})`, "gi")).map((part, index) => index % 2 ? `<mark>${esc(part)}</mark>` : esc(part)).join("");

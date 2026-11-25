@@ -1,12 +1,12 @@
 import { claudeButton, openClaude, pbiPrimary } from "../claude.js";
 import { hooks, shared } from "../state.js";
 import { itemAction, itemActivity, prAction, rank, signals } from "../status.js";
-import { s, t } from "../texts.js";
+import { t } from "../texts.js";
 import { ago, cap, esc, latest, orderPill, pill, statusOf } from "../util.js";
 
 // A row of the Today tab: the pill says what it asks of me, then what it is, one useful sentence and one main
 // action. The title and Details open the page of the PBI or of the pull request, where everything else is.
-export function rowHtml({ status, pillText, order = "", meta, title, href, line, lineClass = "", primary }) {
+function rowHtml({ status, pillText, order = "", meta, title, href, line, lineClass = "", primary }) {
   return `<article class="row ${status}">
     <div class="row-main"><div class="row-text">
         <div class="row-meta">${order}${pill(status, pillText)}<span>${meta}</span></div>
@@ -15,7 +15,7 @@ export function rowHtml({ status, pillText, order = "", meta, title, href, line,
       <div class="row-actions">${primary || ""}<a class="btn" href="${href}">${esc(t("details"))}</a></div></div></article>`;
 }
 
-export function reviewRow(pr) {
+function reviewRow(pr) {
   const [status, hint] = prAction(pr);
   // Once I approved and wrote a review, the main action is to read it again; else to review.
   const readFirst = status === "OK" && pr.review;
@@ -27,7 +27,7 @@ export function reviewRow(pr) {
       : claudeButton("review", pr.id, "claudeReview", "", status === "TODO" ? "primary" : "") }) };
 }
 
-export function itemRow(item) {
+function itemRow(item) {
   const [status, reason] = itemAction(item);
   const state = statusOf(item);
   const activity = itemActivity(item);
@@ -43,7 +43,7 @@ export function itemRow(item) {
 }
 
 // Rows go by status (to do, in progress, waiting, done), then by last activity, most recent first.
-export function fill(id, rows, empty) {
+function fill(id, rows, empty) {
   rows.sort((a, b) => rank[a.status] - rank[b.status] || (b.activity ?? "").localeCompare(a.activity ?? ""));
   document.getElementById(id).innerHTML = rows.length ? rows.map(row => row.html).join("") : `<div class="empty">${esc(empty)}</div>`;
   document.getElementById(`${id}Count`).textContent = `· ${rows.length}`;
@@ -52,11 +52,11 @@ export function fill(id, rows, empty) {
 
 // Sprint filter on my PBIs: one chip per sprint, several can be on. An empty selection means all sprints. It starts
 // on the current sprint and is kept in localStorage; a sprint that no longer has PBIs drops out.
-export let selectedSprints = null;
-export const sprintOf = item => item.iterationPath?.includes("\\") ? item.iterationPath : "";
-export const sprintLabel = path => path ? path.split("\\").pop() : t("noSprint");
+let selectedSprints = null;
+const sprintOf = item => item.iterationPath?.includes("\\") ? item.iterationPath : "";
+const sprintLabel = path => path ? path.split("\\").pop() : t("noSprint");
 
-export function sprintsFilter() {
+function sprintsFilter() {
   const counts = new Map();
   shared.lastData.workItems.forEach(item => counts.set(sprintOf(item), (counts.get(sprintOf(item)) ?? 0) + 1));
   const sprints = [...counts.keys()].sort((a, b) => (a === "") - (b === "") || a.localeCompare(b, undefined, { numeric: true }));
@@ -97,10 +97,10 @@ export function renderToday() {
 
 // Review of any PBI or pull request typed in the box, picked by the PBI / PR selector. "#249499" means a PBI and
 // "!55769" or "PR 55769" a pull request, whatever the selector says. Anything else is refused before calling the server.
-export const reviewKind = () => document.getElementById("reviewKind").value;
+const reviewKind = () => document.getElementById("reviewKind").value;
 export const updateReviewPlaceholder = () =>
   document.getElementById("pbiReviewId").placeholder = t(reviewKind() === "pr" ? "prReviewPlaceholder" : "pbiReviewPlaceholder");
-export const clearReviewError = () => {
+const clearReviewError = () => {
   document.getElementById("pbiReviewId").classList.remove("invalid");
   const note = document.getElementById("pbiReviewError");
   note.textContent = note.title = "";

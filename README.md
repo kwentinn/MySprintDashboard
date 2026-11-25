@@ -448,7 +448,8 @@ so another site open in the browser cannot start a session.
 ## The page's script
 
 `wwwroot/js` holds native JavaScript modules, loaded by the browser as they are (`<script type="module">`, no build
-step). A module imports only from the ones above it in this table, so nothing goes in circles:
+step). A module imports only from the ones above it in this table, so nothing goes in circles, and exports only what
+another module uses:
 
 | Module | Content |
 | :----- | :------ |
@@ -459,7 +460,8 @@ step). A module imports only from the ones above it in this table, so nothing go
 | `claude.js` | the buttons that open a Claude session, and the call that opens it |
 | `reader.js` | the dialog that reads a file of the vault, and the links that open it |
 | `views/parts.js` | pieces the PBI and pull request pages share: the panel of a file, a comment thread, the way back |
-| `views/today.js`, `daily.js`, `questions.js`, `search.js`, `pbi.js`, `pr.js` | one view each: what it draws and what its own controls do |
+| `views/today.js`, `daily.js`, `questions.js`, `search.js`, `pr.js` | one view each: what it draws and what its own controls do |
+| `views/pbi.js` | the page of a PBI, whose Questions tab comes from `questions.js` |
 | `main.js` | the start: loading and refreshing the data, the address (`route`), the order in which the views are drawn, the clicks |
 
 A view never imports `main.js`. When it needs the page to do something (load the data again, draw everything, draw
@@ -480,6 +482,14 @@ file (frontmatter, sections, answers), which files count as questions, and what 
 with its number and its lines in the indexes, a change of state, an answer placed before the notes), plus the
 paths and texts it refuses. Each test works in an empty vault under the temporary folder, never in the real one.
 The rest of the server (Azure DevOps, the daily, the sessions) has no test.
+
+```powershell
+node --test tests/js/
+```
+
+The page's script has tests for the functions that hold rules and need no page: what a pull request and a PBI ask
+of me (`prAction`, `itemAction`) and the reading of a file's frontmatter. They run with Node alone, no dependency;
+`package.json` is only there so that Node reads `wwwroot/js` as modules. The views themselves have no test.
 
 ## How it works
 

@@ -44,6 +44,11 @@ var app = builder.Build();
 // The page: index.html at "/", and the files it names (css, js) from the same folder, the only one served. The
 // browser asks again on each load (no-cache), so an edit shows without a restart.
 var web = Path.Combine(home, "wwwroot");
+if (!File.Exists(Path.Combine(web, "index.html")))
+{
+    Console.Error.WriteLine($"{web} is missing: the page (index.html, css, js) must be in that folder.");
+    return 1;
+}
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(web),

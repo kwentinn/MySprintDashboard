@@ -105,8 +105,9 @@ document.getElementById("refresh").onclick = () => {
   load();
 };
 
-// The views share the page: Today, the daily (#daily), one PBI (#pbi/<id>/<tab>) and one pull request
-// (#pr/<id>/<tab>). The address keeps the view, so a reload and the browser's back button work.
+// The views share the page: Today, the daily (#daily), the questions (#questions), a search (#search/<words>), one
+// PBI (#pbi/<id>/<tab>) and one pull request (#pr/<id>/<tab>). The address keeps the view, so a reload and the
+// browser's back button work.
 let shownPage = "", listScroll = 0;
 function route() {
   const [name, id, tab] = location.hash.slice(1).split("/");

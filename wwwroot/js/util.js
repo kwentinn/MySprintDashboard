@@ -1,4 +1,4 @@
-import { lang, s, t } from "./texts.js";
+import { lang, t } from "./texts.js";
 
 export const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 export const cap = text => text.replace(/^./, c => c.toUpperCase());
@@ -22,7 +22,7 @@ export function latest(...dates) {
 
 // Obsidian links between notes, [[Folder/Note|text]] or [[Note#Section]], become markdown links to the note's file
 // from the root of the vault ("/Folder/Note.md"), which the reader opens (see vaultPath).
-export const wikilinks = text => text.replace(/\[\[([^\]|#\n]+)(?:#[^\]|\n]*)?(?:\|([^\]\n]+))?\]\]/g,
+const wikilinks = text => text.replace(/\[\[([^\]|#\n]+)(?:#[^\]|\n]*)?(?:\|([^\]\n]+))?\]\]/g,
   (_, target, alias) => `[${alias ?? target.trim().split("/").pop()}](</${target.trim()}${/\.md$/i.test(target.trim()) ? "" : ".md"}>)`);
 
 // Markdown of the vault and of Azure DevOps, rendered with marked and sanitized with DOMPurify; raw text if the CDN
@@ -33,7 +33,7 @@ export const markdown = text => window.marked && window.DOMPurify
 // HTML written in Azure DevOps (a PBI's description): sanitized, or its text alone if the CDN is unreachable. Its
 // inline styles go too: colors pasted into Azure DevOps would fight the page's theme (black text in dark mode).
 export const safeHtml = html => window.DOMPurify ? DOMPurify.sanitize(html, { FORBID_ATTR: ["style"] }) : esc(html.replace(/<[^>]+>/g, " "));
-export const section = (text, name) => {
+const section = (text, name) => {
   const match = text.match(new RegExp(`^##\\s+${name}\\s*$([\\s\\S]*?)(?=^##\\s|(?![\\s\\S]))`, "m"));
   return match ? match[1].trim() : "";
 };

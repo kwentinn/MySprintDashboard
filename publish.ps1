@@ -29,6 +29,8 @@ if ($LASTEXITCODE -ne 0) {
 # is replaced whole, so a file removed here does not stay there.
 $page = Join-Path $target 'wwwroot'
 if (Test-Path $page) { Remove-Item $page -Recurse -Force }
+# An earlier layout had index.html next to the executable: it is no longer read.
+Remove-Item (Join-Path $target 'index.html') -ErrorAction SilentlyContinue
 Copy-Item (Join-Path $PSScriptRoot 'wwwroot') $target -Recurse
 Copy-Item (Join-Path $PSScriptRoot 'dashboard.settings.json') $target -Force
 Write-Host "Published in $target ($((Get-Item $exe).LastWriteTime))."

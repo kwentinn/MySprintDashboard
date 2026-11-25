@@ -9,7 +9,7 @@ export const claudeButton = (kind, id, label, title, cls = "") =>
 export const threadsButton = (pr, cls) => pr.openThreads > 0
   && claudeButton("threads", pr.id, "claudeThreads", t("threadsTitle")(pr.openThreads, pr.totalThreads - pr.openThreads), cls);
 // Resume the last review or thread analysis of a pull request (Reviews/sessions.jsonl), next to the button that starts a new one.
-export const sessionDate = session => new Date(session.startedAt).toLocaleString(t("locale"), { dateStyle: "short", timeStyle: "short" });
+const sessionDate = session => new Date(session.startedAt).toLocaleString(t("locale"), { dateStyle: "short", timeStyle: "short" });
 export const resumeReviewButton = (pr, cls) => pr.reviewSession
   && claudeButton("review-resume", pr.id, "claudeResumeReview", t("claudeResumeTitle")(sessionDate(pr.reviewSession)), cls);
 export const resumeThreadsButton = (pr, cls) => pr.threadsSession

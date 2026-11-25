@@ -1,7 +1,7 @@
 import { docLink } from "../claude.js";
 import { hooks, shared } from "../state.js";
 import { t } from "../texts.js";
-import { ago, cap, esc, markdown, pill, section, shortDate, shortDateTime } from "../util.js";
+import { ago, cap, esc, markdown, pill, shortDate, shortDateTime } from "../util.js";
 import { stepPanel } from "./parts.js";
 
 // Questions asked to the PO or the team: one file each in the vault (rule "Questions" of the workspace CLAUDE.md),
@@ -10,20 +10,20 @@ import { stepPanel } from "./parts.js";
 // the forms write the files through POST /api/questions/<action>, which answers the new list.
 export let questions = [], questionForm = null, questionFilter = "waiting";
 // Questions unfolded or folded by hand (file -> shown); the others follow the default of their view.
-export const shownQuestions = new Map();
-export const questionRank = { waiting: 0, draft: 1, resolved: 2, dropped: 3 };
-export const questionChannels = ["ado", "teams", "email", "kb", "call", "other"];
+const shownQuestions = new Map();
+const questionRank = { waiting: 0, draft: 1, resolved: 2, dropped: 3 };
+const questionChannels = ["ado", "teams", "email", "kb", "call", "other"];
 export const stateOf = q => q.state in questionRank ? q.state : "draft";
-export const askedTime = q => new Date(q.asked || q.updated).getTime() || 0;
+const askedTime = q => new Date(q.asked || q.updated).getTime() || 0;
 // Waiting ones first, the oldest on top; then the drafts and the closed ones, the last changed on top.
-export const sortQuestions = list => [...list].sort((a, b) => questionRank[stateOf(a)] - questionRank[stateOf(b)]
+const sortQuestions = list => [...list].sort((a, b) => questionRank[stateOf(a)] - questionRank[stateOf(b)]
   || (stateOf(a) === "waiting" ? askedTime(a) - askedTime(b) : (b.updated ?? "").localeCompare(a.updated ?? "")));
 // A date of a question file: with its time when it has one, as written when it is not a date.
-export const when = value => !value ? "" : isNaN(new Date(value)) ? value : value.includes("T") ? shortDateTime(value) : shortDate(value);
-export const messageLink = url => /^https?:\/\//.test(url ?? "") ? `<a class="link" href="${esc(url)}" target="_blank" rel="noopener">${esc(t("qOpenMessage"))}</a>` : "";
-export const questionNumber = q => { const match = /^q(\d+)-/.exec(q.name); return match ? `Q${Number(match[1])}` : q.title; };
-export const nowLocal = () => { const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); return now.toISOString().slice(0, 16); };
-export const optionsHtml = (values, names, selected) => values.map(value =>
+const when = value => !value ? "" : isNaN(new Date(value)) ? value : value.includes("T") ? shortDateTime(value) : shortDate(value);
+const messageLink = url => /^https?:\/\//.test(url ?? "") ? `<a class="link" href="${esc(url)}" target="_blank" rel="noopener">${esc(t("qOpenMessage"))}</a>` : "";
+const questionNumber = q => { const match = /^q(\d+)-/.exec(q.name); return match ? `Q${Number(match[1])}` : q.title; };
+const nowLocal = () => { const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset()); return now.toISOString().slice(0, 16); };
+const optionsHtml = (values, names, selected) => values.map(value =>
   `<option value="${esc(value)}"${value === selected ? " selected" : ""}>${esc(names[value] ?? value)}</option>`).join("");
 
 export async function loadQuestions() {
@@ -32,12 +32,12 @@ export async function loadQuestions() {
     if (response.ok) setQuestions(await response.json());
   } catch { }
 }
-export function setQuestions(list) {
+function setQuestions(list) {
   questions = list;
   updateQuestionsTab();
   drawQuestions();
 }
-export const drawQuestions = () => { renderQuestions(); hooks.renderPbi(); };
+const drawQuestions = () => { renderQuestions(); hooks.renderPbi(); };
 // What is typed in an open question form survives a redraw of its view (a refresh, a question unfolded): its values,
 // focus and cursor are taken before and put back in the same form after.
 export function formValues(view) {
@@ -66,9 +66,9 @@ export function restoreForm(view, kept) {
     try { field.setSelectionRange(kept.focus.start, kept.focus.end); } catch { }
   }
 }
-export const askedToggle = (form, on) => { const fields = form.querySelector("[data-asked-fields]"); fields.hidden = fields.disabled = !on; };
+const askedToggle = (form, on) => { const fields = form.querySelector("[data-asked-fields]"); fields.hidden = fields.disabled = !on; };
 // A form being saved cannot be sent again.
-export const setBusy = (form, on) => { form.dataset.busy = on ? "1" : ""; form.querySelector("[type=submit]").disabled = on; };
+const setBusy = (form, on) => { form.dataset.busy = on ? "1" : ""; form.querySelector("[type=submit]").disabled = on; };
 export function updateQuestionsTab() {
   const waiting = questions.filter(q => stateOf(q) === "waiting").length;
   document.getElementById("questionsTab").innerHTML = esc(t("tabQuestions")) + (waiting ? pill("TODO", waiting, "small") : "");
@@ -76,7 +76,7 @@ export function updateQuestionsTab() {
 
 // One question: its state (and how long it has been waiting), who it was asked to and where, its answers with their
 // source and link, then what can be done with it, or the form that was opened on it.
-export function questionCard(q, showPbi) {
+function questionCard(q, showPbi) {
   const state = stateOf(q);
   const chase = state === "waiting" && Date.now() - askedTime(q) > 7 * 864e5;
   const item = shared.lastData?.workItems.find(workItem => workItem.id === q.pbi);
@@ -112,21 +112,21 @@ export function questionCard(q, showPbi) {
 }
 
 // The forms. The names already met (people asked, authors of answers) are proposed where a name is typed.
-export const formHtml = (kind, file, title, fields, submit) => `<form class="qform" data-qsubmit="${kind}" data-file="${esc(file ?? "")}">
+const formHtml = (kind, file, title, fields, submit) => `<form class="qform" data-qsubmit="${kind}" data-file="${esc(file ?? "")}">
     <b>${esc(title)}</b>${fields}
     <datalist id="people">${[...new Set(questions.flatMap(q => [...(q.to ?? "").split(","), ...q.answers.map(answer => answer.author)])
       .map(name => name.trim()).filter(Boolean))].sort().map(name => `<option value="${esc(name)}">`).join("")}</datalist>
     <div class="row-actions"><button class="primary" type="submit">${esc(submit)}</button><button type="button" data-qcancel>${esc(t("qCancel"))}</button><span class="note"></span></div></form>`;
 // Who a question was asked to, where, when, and the link of the message (pasted from Teams, Azure DevOps or a mail).
-export const askedFields = q => `<div class="fields">
+const askedFields = q => `<div class="fields">
     <label>${esc(t("qTo"))}<input name="to" required list="people" autocomplete="off" value="${esc(q?.to ?? "")}"></label>
     <label>${esc(t("qChannel"))}<select name="channel">${optionsHtml(questionChannels, t("qChannels"), q?.channel ?? "teams")}</select></label>
     <label>${esc(t("qAskedOn"))}<input name="asked" type="datetime-local" required value="${nowLocal()}"></label>
     <label>${esc(t("qLink"))}<input name="link" type="url" placeholder="https://" value="${esc(q?.link ?? "")}"></label></div>`;
-export const askForm = q => formHtml("ask", q.file, t("qIAsked"), askedFields(q), t("qSaveAsk"));
+const askForm = q => formHtml("ask", q.file, t("qIAsked"), askedFields(q), t("qSaveAsk"));
 
 // An answer, or my own decision (source "decision", under the name my last decision was written with).
-export function answerForm(q, decide) {
+function answerForm(q, decide) {
   const author = decide ? questions.flatMap(other => other.answers).filter(answer => answer.source === "decision").pop()?.author ?? ""
     : (q.to ?? "").split(",")[0].trim();
   return formHtml("answer", q.file, t(decide ? "qDecide" : "qAnswer"), `<div class="fields">
@@ -142,9 +142,9 @@ export function answerForm(q, decide) {
 
 // A new question: for one of my PBIs (or one that already has questions) or for none, maybe following another one,
 // kept as a draft unless it was already asked.
-export const followsOptions = (pbi, selected) => `<option value=""></option>` + sortQuestions(questions.filter(q => (q.pbi ?? null) === pbi))
+const followsOptions = (pbi, selected) => `<option value=""></option>` + sortQuestions(questions.filter(q => (q.pbi ?? null) === pbi))
   .map(q => `<option value="${esc(q.name)}"${q.name === selected ? " selected" : ""}>${esc(q.title)}</option>`).join("");
-export function newQuestionForm({ pbi = null, follows = "" }) {
+function newQuestionForm({ pbi = null, follows = "" }) {
   const titles = new Map([...questions.filter(q => q.pbi).map(q => [q.pbi, ""]), ...(shared.lastData?.workItems ?? []).map(item => [item.id, item.title])]);
   if (pbi) titles.set(pbi, titles.get(pbi) ?? "");
   return formHtml("create", "", t("qNew"), `<div class="fields">
@@ -193,7 +193,7 @@ export function questionsPanel(item) {
     ${form}<div class="list">${list.map(q => questionCard(q, false)).join("")}</div>`;
 }
 
-export async function postQuestion(action, body, form) {
+async function postQuestion(action, body, form) {
   try {
     const response = await fetch(`/api/questions/${action}`, { method: "POST", headers: { "X-Dashboard": "1", "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await response.json();
@@ -211,7 +211,7 @@ export async function postQuestion(action, body, form) {
 }
 
 // A form that is opened or closed starts from its own values, not from what the form it replaces held.
-export const dropForms = () => document.querySelectorAll("form.qform").forEach(form => form.remove());
+const dropForms = () => document.querySelectorAll("form.qform").forEach(form => form.remove());
 // Clicks on the question cards and forms (called by the page's click listener).
 export function questionClick(e) {
   const pick = name => e.target.closest(`[data-${name}]`);

@@ -5,11 +5,11 @@ import { ago, esc, frontmatter, localized, markdown } from "./util.js";
 // Markdown files of the vault: reviews (Reviews/<pr>-review.md, <pr>-threads.md) and PBI working files
 // (PBIs/pbi-<id>/<step>.md), keyed "review:<pr>" / "threads:<pr>" / "pbi:<id>:<step>". Rendered with marked and
 // sanitized with DOMPurify; raw text if the CDN is unreachable.
-export const documents = new Map();
+const documents = new Map();
 
 // A file of the vault as the dialog shows it: its frontmatter becomes one line above the text, with its last change
 // and the sessions that wrote it.
-export const docText = doc => {
+const docText = doc => {
   const { fields, body } = frontmatter(doc.markdown);
   return (fields.session ? `*${t("writtenBy")(ago(fields.updated || doc.updated), fields.sessions || fields.session)}*\n\n` : "") + body;
 };
@@ -35,8 +35,8 @@ export function openDocument(key) {
 
 // The dialog is the reader of the vault's markdown files: `file` (relative to the vault) is what the links of the
 // text shown are relative to, and Back returns to the file the last link was followed from.
-export const readerTrail = [];
-export function showDialog(title, html, file = "") {
+const readerTrail = [];
+function showDialog(title, html, file = "") {
   document.getElementById("reviewFile").textContent = title;
   document.getElementById("reviewBack").hidden = readerTrail.length < 2;
   const body = document.getElementById("reviewBody");
@@ -50,7 +50,7 @@ export function showDialog(title, html, file = "") {
 
 // The file of the vault a link of a vault text points to, or null for any other link (a site, an anchor). A text of the vault sits in an element whose data-vault is its file: a relative link starts from
 // the folder of that file, a link that starts with "/" from the root of the vault.
-export function vaultPath(link) {
+function vaultPath(link) {
   const href = link.getAttribute("href");
   if (/^([a-z][a-z0-9+.-]*:|#|\/\/)/i.test(href)) return null;
   let path;
@@ -69,7 +69,7 @@ export function openVaultLink(event) {
 document.addEventListener("auxclick", openVaultLink);
 
 // Opens a markdown file of the vault in the reader (GET /api/vault).
-export async function openVaultFile(path) {
+async function openVaultFile(path) {
   // Another kind of file (a PDF, an image) is in the vault too, but the reader only shows markdown: it says so
   // instead of sending the browser to an address the server does not have.
   const isMarkdown = /\.md$/i.test(path);

@@ -2,7 +2,7 @@ import { claudeButton, resumeReviewButton, resumeThreadsButton, threadsButton } 
 import { shared } from "../state.js";
 import { prAction, signals, votesText } from "../status.js";
 import { t } from "../texts.js";
-import { ago, cap, esc, markdown, orderPill, pill, section } from "../util.js";
+import { ago, cap, esc, markdown, orderPill, pill } from "../util.js";
 import { backLink, conversationHtml, filePanel, finishPage, pagePlaceholder } from "./parts.js";
 
 // The page of one pull request (#pr/<id>/<tab>), one I review or one of my PBIs: what it asks, its signals, votes,

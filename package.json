@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "description": "Only here so that Node reads wwwroot/js as modules when it runs the tests of the page's script. No dependency, no build.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/js/"
+  }
+}

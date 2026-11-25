@@ -1,6 +1,6 @@
 // Texts of the page, one dictionary per language. Function entries take the values to insert.
-export const s = n => n > 1 ? "s" : "";
-export const texts = {
+const s = n => n > 1 ? "s" : "";
+const texts = {
   fr: {
     locale: "fr-FR", day: "j", title: "Aujourd'hui", since: age => `il y a ${age}`,
     loading: "Chargement...", refreshNow: "Rafraîchir maintenant", close: "Fermer", back: "Retour", fileMissing: path => `Fichier introuvable dans le vault : ${path}`,
@@ -212,7 +212,7 @@ export const texts = {
 };
 
 // Language: ?lang=, else the last choice, else the browser's; the choice is kept in localStorage when allowed.
-export const storedLanguage = () => { try { return localStorage.getItem("dashboard.lang"); } catch { return null; } };
+const storedLanguage = () => { try { return localStorage.getItem("dashboard.lang"); } catch { return null; } };
 export let lang = [new URLSearchParams(location.search).get("lang"), storedLanguage(), navigator.language.slice(0, 2)]
   .find(code => code in texts) ?? "en";
 export const t = key => texts[lang][key];

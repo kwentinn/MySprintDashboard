@@ -45,9 +45,9 @@ export function itemAction(item) {
 
 // A pull request in one sentence: conflicts, draft, comment threads and the state of its Build policies (the CI
 // links to the build). A thread counts once whatever its replies; system threads are left out by the server.
-export const threadsText = pr => pr.totalThreads == null ? "" : pr.totalThreads === 0 ? t("noThread")
+const threadsText = pr => pr.totalThreads == null ? "" : pr.totalThreads === 0 ? t("noThread")
   : pr.openThreads === 0 ? t("allResolved") : t("openOf")(pr.openThreads, pr.totalThreads);
-export const ciHtml = pr => {
+const ciHtml = pr => {
   if (!pr.ci) return "";
   const text = esc(t("ci")[pr.ci.status] ?? `CI ${pr.ci.status}`);
   return pr.ci.buildUrl ? `<a href="${esc(pr.ci.buildUrl)}" target="_blank">${text}</a>` : text;

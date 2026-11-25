@@ -1,6 +1,6 @@
 import { shared } from "../state.js";
-import { lang, s, t } from "../texts.js";
-import { ago, esc, frontmatter, markdown, section } from "../util.js";
+import { lang, t } from "../texts.js";
+import { ago, esc, frontmatter, markdown } from "../util.js";
 
 // Pieces the pages of a PBI and of a pull request share.
 

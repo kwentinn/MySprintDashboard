@@ -3,14 +3,14 @@ import { cap, esc, markdown, orderPill } from "../util.js";
 
 // Daily tab: what I did on the previous working day (Friday on a Monday), from /api/daily, for the daily meeting.
 // The arrows move one working day; a day is loaded once, the refresh button reloads it.
-export let dailyDay = null, dailyData = null;
-export const isoDay = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-export function stepWorkingDay(date, step) {
+let dailyDay = null, dailyData = null;
+const isoDay = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+function stepWorkingDay(date, step) {
   const next = new Date(date);
   do next.setDate(next.getDate() + step); while (next.getDay() === 0 || next.getDay() === 6);
   return next;
 }
-export const dayLabel = date => cap(date.toLocaleDateString(t("locale"), { weekday: "long", day: "numeric", month: "long" }));
+const dayLabel = date => cap(date.toLocaleDateString(t("locale"), { weekday: "long", day: "numeric", month: "long" }));
 
 // The tab says "Yesterday", or the day's name when the previous working day is further back (Friday on a Monday).
 export function updateDailyTab() {
@@ -45,7 +45,7 @@ export async function loadDaily(force = false) {
 
 // One card per work item or pull request. A pull request of mine goes into the card of its work item when that item
 // has one that day, so a task reads in one place.
-export function dailyGroups() {
+function dailyGroups() {
   const groups = dailyData.groups.map(group => ({ ...group, events: [...group.events] }));
   const items = new Map(groups.filter(group => group.type !== "pr").map(group => [group.id, group]));
   return groups.filter(group => {
@@ -58,7 +58,7 @@ export function dailyGroups() {
   });
 }
 
-export function renderDaily() {
+function renderDaily() {
   document.getElementById("dailyTitle").textContent = dayLabel(dailyDay);
   showSummary();
   const container = document.getElementById("daily"), total = document.getElementById("dailyCount");
@@ -81,8 +81,8 @@ export function renderDaily() {
 }
 
 // AI summary of the shown day (POST /api/daily-summary, claude -p on the server), kept per day and language.
-export const summaries = new Map();
-export function showSummary() {
+const summaries = new Map();
+function showSummary() {
   const summary = dailyDay && summaries.get(`${isoDay(dailyDay)}:${lang}`);
   document.getElementById("dailySummary").innerHTML = summary ? `<div class="markdown">${markdown(summary)}</div>` : `<div class="muted">${esc(t("aiSummaryHint"))}</div>`;
   document.getElementById("dailySummaryButton").textContent = t(summary ? "aiSummaryAgain" : "aiSummary");
