@@ -27,7 +27,7 @@ for a PBI (see "What the page shows").
 | `Claude.cs` | The Claude sessions: the terminal tab that runs one and its prompts. |
 | `Settings.cs` | Reads `dashboard.settings.json`. |
 | `tests/` | The tests of the vault's questions, on a temporary folder (see Tests). |
-| `wwwroot/` | The page, plain HTML, CSS and JavaScript with no build step: `index.html` (the markup), `css/app.css` (the styles) and `js/app.js` (the script). The server serves this folder and nothing else; the browser asks for each file again on every load, so you can edit them without restarting the server. |
+| `wwwroot/` | The page, plain HTML, CSS and JavaScript with no build step: `index.html` (the markup), `css/app.css` (the styles) and `js/` (the script, as modules: see The page's script). The server serves this folder and nothing else; the browser asks for each file again on every load, so you can edit them without restarting the server. |
 | `dashboard.settings.json` | The settings of this machine (not committed): copy `dashboard.settings.example.json` and fill it in (below). |
 | `<vault>/Reviews/<pr>-review.md` | My review notes, shown on the matching pull request when the file exists. |
 | `<vault>/Reviews/<pr>-threads.md` | The analysis of a pull request's unresolved threads, written by an **Analyze with Claude** session. |
@@ -103,7 +103,7 @@ The page is in English or French; pick one with the selector at the top right. T
 (`localStorage`), and `?lang=en` or `?lang=fr` forces one. Without either, the page follows the browser's language,
 and falls back to English.
 
-All texts sit in the `texts` object at the top of `wwwroot/js/app.js`, one dictionary per language. To add a
+All texts sit in the `texts` object of `wwwroot/js/texts.js`, one dictionary per language. To add a
 language, copy the `en` dictionary under a new code (`de`, ...), translate it, and add an `<option>` to the
 `#lang` selector. Data from Azure DevOps (titles, states, work item types) is shown as it is.
 
@@ -444,6 +444,28 @@ The page calls `POST /api/sessions/<kind>/<id>`, with `?step=<file name>` for a 
 numeric id and a step name checked against the known ones reach the prompt, never a title read from Azure DevOps. The
 server refuses the call (403) unless the `Origin` is the dashboard itself and the `X-Dashboard: 1` header is present,
 so another site open in the browser cannot start a session.
+
+## The page's script
+
+`wwwroot/js` holds native JavaScript modules, loaded by the browser as they are (`<script type="module">`, no build
+step). A module imports only from the ones above it in this table, so nothing goes in circles:
+
+| Module | Content |
+| :----- | :------ |
+| `texts.js` | the texts in French and English, the language, `t()` |
+| `state.js` | what the modules share: `shared` (the last data, the view and page of the address, the folded description, the language of the files shown) and `hooks` (see below) |
+| `util.js` | escaping, dates, pills, Markdown and its frontmatter |
+| `status.js` | what a pull request or a PBI asks of me (`prAction`, `itemAction`) and the sentence of a pull request |
+| `claude.js` | the buttons that open a Claude session, and the call that opens it |
+| `reader.js` | the dialog that reads a file of the vault, and the links that open it |
+| `views/parts.js` | pieces the PBI and pull request pages share: the panel of a file, a comment thread, the way back |
+| `views/today.js`, `daily.js`, `questions.js`, `search.js`, `pbi.js`, `pr.js` | one view each: what it draws and what its own controls do |
+| `main.js` | the start: loading and refreshing the data, the address (`route`), the order in which the views are drawn, the clicks |
+
+A view never imports `main.js`. When it needs the page to do something (load the data again, draw everything, draw
+the PBI page), it calls `hooks.load()`, `hooks.render()` or `hooks.renderPbi()`, which `main.js` fills in when it
+starts. A variable several modules set is a field of `shared`; one a single module sets is exported by that module
+and read by the others.
 
 ## Tests
 
