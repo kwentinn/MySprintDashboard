@@ -197,7 +197,7 @@ app.MapPost("/api/questions/{action}", async (HttpRequest request, string action
         {
             case "create":
                 CreateQuestion((int?)body["pbi"], Required("title"), Text("question"), Line("follows"),
-                    Line("state") == "waiting" ? Asked() : new() { ["state"] = "draft" });
+                    Line("state") == "waiting" ? Asked() : new() { ["state"] = "draft" }, Line("pbiTitle"));
                 break;
             case "ask":
                 UpdateQuestion(QuestionPath(Text("file")), Asked());

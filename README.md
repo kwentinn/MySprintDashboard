@@ -272,8 +272,10 @@ The link of a message is pasted by hand (in Teams: the "..." menu of the message
 `http(s)` address is accepted. The server reads the files with `GET /api/questions` (no Azure DevOps call, so the
 view shows at once) and writes them with `POST /api/questions/<create|ask|answer|state>`, under the same guard as the
 Claude sessions (`Origin` and `X-Dashboard: 1`). It only writes question files and their index, at a path it builds
-or checks itself. A file written by the dashboard names `dashboard` as its session. The automatic refresh waits
-while a form is open.
+or checks itself. A file written by the dashboard names `dashboard` as its session. A first question on a PBI that
+has no folder in the vault also gives it its hub note (`pbi-<id>.md`) and its line in `PBIs/PBIs.md`. An open form
+keeps what is typed in it, its focus and its cursor when the page refreshes. A question file that cannot be read is
+left out of the list, with the reason on the server console.
 
 ### Search
 
@@ -285,7 +287,7 @@ PBI, `!4215` or `PR 4215` the page of that pull request; otherwise it is searche
 | :---- | :--------------- | :------------- |
 | Work items of the project | title, description, acceptance criteria and comments, as words that start with the ones typed ("allergen" finds "allergens"); the id | type, id, sprint, state, who it is assigned to, and where the words are (title, description with its passage, or comments) |
 | Pull requests of the project | title and the first 400 characters of the description of the 200 last active ones; the id | id, repository and target branch, author, and where the words are |
-| Markdown files of the vault | the text and the path of every `.md` file, any part of a word | its folder or PBI, its path, its last change, how many lines hold a word and the first three, the state of a question |
+| Markdown files of the vault | the text (not the frontmatter) and the path of every `.md` file, any part of a word | its folder or PBI, its path, its last change, how many lines hold a word and the first three, the state of a question |
 
 The 30 first work items and pull requests are shown: the item whose id was typed, then the ones whose title holds
 the words, each last changed first. **Closed ones too** adds the work items that are Done, Removed or Closed and
@@ -293,16 +295,18 @@ the 500 last pull requests whatever their status. The 40 first files of the vaul
 path holds the words, then those with the most passages, then the last changed; French copies (`.fr.md`) and
 hidden folders are left out. Chips filter by source and by folder of the vault.
 
-One of my open PBIs, or a pull request the dashboard already shows, opens its page. Another work item gets
-**Review with Claude** and a link to Azure DevOps; another active pull request too, and that review adds me to its
-reviewers. A file of the vault opens in the reader.
+One of my open PBIs, or a pull request the dashboard already shows, opens its page. Another PBI or bug gets
+**Review with Claude** and a link to Azure DevOps (a Feature or a Test Suite only the link); another active pull
+request too, and that review adds me to its reviewers. A file of the vault opens in the reader. The refresh button
+of the header runs the search shown again.
 
 The server answers `GET /api/search?q=<words>&closed=1`. Work items go through a WIQL query on the full-text index
 (`CONTAINS WORDS`): a part of a word in the title (`CONTAINS`) scans the whole project and times out. A word is cut
 at its punctuation ("rows[0]" is "rows" and "0"); a piece of one character is left out and one of two is looked for
 whole, since a wildcard on so little times out too. A work item whose id is typed is found whatever its state.
 Azure DevOps has no text search on pull requests, so they are listed and filtered by the server: the list cuts a
-description at 400 characters, and comment threads are not searched. If Azure DevOps fails, the results of the vault still show, with the error above them.
+description at 400 characters, and comment threads are not searched. If Azure DevOps fails, the results of the vault still show, with the error above them; work items and pull
+requests fail separately, so one still shows when the other does not.
 
 ### Reader of the vault's files
 

@@ -198,6 +198,37 @@ public sealed class VaultQuestionsTests : IDisposable
     }
 
     [Fact]
+    public void CreateQuestion_on_a_pbi_without_a_folder_gives_it_its_hub_note_and_its_line_in_the_index_of_pbis()
+    {
+        Write("PBIs/PBIs.md", "# PBIs\n\n## Worked on\n\n- [[PBIs/pbi-1187/pbi-1187|1187]] - Export\n\n## Reviewed\n\n- [[PBIs/pbi-1100/pbi-1100|1100]] - Other\n");
+
+        CreateQuestion(1300, "First question", "", "", new() { ["state"] = "draft" }, "Credit notes");
+        CreateQuestion(1300, "Second question", "", "", new() { ["state"] = "draft" }, "Credit notes");
+
+        var hub = Read("PBIs/pbi-1300/pbi-1300.md");
+        Assert.Contains("\npbi: 1300\n", hub);
+        Assert.EndsWith("# PBI 1300 - Credit notes\n\nPart of [[PBIs/PBIs|PBIs]]. Working files, in the format of the workspace `CLAUDE.md` (the dashboard reads them):\n\n- [[PBIs/pbi-1300/06-open-questions|Open questions]]\n", hub);
+        // One line, at the end of "Worked on", whatever the number of questions.
+        Assert.Equal("# PBIs\n\n## Worked on\n\n- [[PBIs/pbi-1187/pbi-1187|1187]] - Export\n- [[PBIs/pbi-1300/pbi-1300|1300]] - Credit notes\n\n## Reviewed\n\n- [[PBIs/pbi-1100/pbi-1100|1100]] - Other\n", Read("PBIs/PBIs.md"));
+        Assert.Equal(2, Questions().Count);
+    }
+
+    [Fact]
+    public void Questions_shows_a_question_with_an_empty_frontmatter_and_skips_what_is_not_a_file()
+    {
+        Write("PBIs/pbi-1201/questions/q01-invoice-language.md", Asked);
+        Write("PBIs/pbi-1201/questions/q02-empty-frontmatter.md", "---\n---\n\n# Q2 - Empty frontmatter\n\n## Question\n\nText.\n");
+        Directory.CreateDirectory(Path.Combine(vault, "PBIs", "pbi-1201", "questions", "q03-a-folder.md"));
+
+        var questions = Questions();
+
+        Assert.Equal(["PBIs/pbi-1201/questions/q01-invoice-language.md", "PBIs/pbi-1201/questions/q02-empty-frontmatter.md"],
+            questions.Select(question => (string)question!["file"]!));
+        Assert.Equal("draft", (string?)questions[1]!["state"]);
+        Assert.Equal("Text.", (string?)questions[1]!["question"]);
+    }
+
+    [Fact]
     public void CreateQuestion_without_a_pbi_goes_to_the_questions_folder()
     {
         Write("Questions/Questions.md", "# Questions\n\nIntro.\n\n## Questions\n\nNone yet.\n");

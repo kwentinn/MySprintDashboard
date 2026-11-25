@@ -95,6 +95,16 @@ public sealed class SearchTests : IDisposable
     }
 
     [Fact]
+    public void SearchVault_does_not_look_into_the_frontmatter()
+    {
+        Write("Knowledge/PDF rendering.md", "---\nupdated: 2026-11-18\nsession: abc\ntags: [invoice]\n---\n\n# PDF rendering\n\nFonts.\n");
+        Write("Knowledge/Sessions.md", "# Sessions\n\nA session writes its id in the frontmatter.\n");
+
+        Assert.Equal(["Knowledge/Sessions.md"], Files(SearchVault(["session"])));
+        Assert.Empty(SearchVault(["invoice"]));
+    }
+
+    [Fact]
     public void SearchVault_finds_nothing_without_words_or_matches()
     {
         Write("Knowledge/PDF rendering.md", "# PDF rendering\n");

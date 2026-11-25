@@ -15,7 +15,14 @@ public static class VaultQuestions
             foreach (var directory in Directory.GetDirectories(pbis, "pbi-*").Select(pbi => Path.Combine(pbi, "questions")).Where(Directory.Exists))
                 files.AddRange(QuestionFiles(directory));
         if (Directory.Exists(QuestionsDirectory(null))) files.AddRange(QuestionFiles(QuestionsDirectory(null)));
-        return new JsonArray([.. files.Order().Select(Question)]);
+        // A file that cannot be read or parsed is left out, and said on the console: the others still show.
+        var questions = new JsonArray();
+        foreach (var file in files.Order())
+        {
+            try { questions.Add((JsonNode)Question(file)); }
+            catch (Exception exception) { Console.Error.WriteLine($"Question {file}: {exception.Message}"); }
+        }
+        return questions;
     }
 
     // The question files of a folder: "q<NN>-<slug>.md" or "q-<date>-<slug>.md". Not the index Questions.md (the file
@@ -28,7 +35,7 @@ public static class VaultQuestions
         var text = File.ReadAllText(path).Replace("\r\n", "\n");
         var end = text.StartsWith("---\n") ? text.IndexOf("\n---", 3) : -1;
         var fields = new Dictionary<string, string>();
-        if (end > 0)
+        if (end > 3)
             foreach (var line in text[4..end].Split('\n'))
                 // A "#" comment needs spaces around it, so the "#<comment id>" of a link stays in the value.
                 if (Regex.Match(line, @"^(\w+):\s*(.*?)(\s+#\s.*)?$") is { Success: true } field)
@@ -132,7 +139,7 @@ public static class VaultQuestions
 
     // A new question file, numbered after the last one of its PBI, and its line in the index: 06-open-questions.md (and
     // its French copy) for a PBI, Questions/Questions.md otherwise.
-    public static void CreateQuestion(int? workItemId, string title, string question, string follows, Dictionary<string, string> fields)
+    public static void CreateQuestion(int? workItemId, string title, string question, string follows, Dictionary<string, string> fields, string workItemTitle = "")
     {
         var directory = QuestionsDirectory(workItemId);
         Directory.CreateDirectory(directory);
@@ -177,10 +184,12 @@ public static class VaultQuestions
             File.WriteAllText(english, $"---\nupdated: {now}\nsession: dashboard\nsessions: [dashboard]\n---\n\n# {pbi} - open questions\n\n## Questions\n");
             // A new working file gets its line in the hub note of the PBI, after the other working files.
             var hub = Path.Combine(PbiDirectory(pbi), $"pbi-{pbi}.md");
-            var hubLines = File.Exists(hub) ? File.ReadAllText(hub).Replace("\r\n", "\n").Split('\n').ToList() : [];
-            if (hubLines.FindLastIndex(line => line.StartsWith($"- [[PBIs/pbi-{pbi}/0")) is var last and >= 0)
+            var hubLine = $"- [[PBIs/pbi-{pbi}/06-open-questions|Open questions]]";
+            if (!File.Exists(hub)) CreateHubNote(pbi, workItemTitle, hubLine, now);
+            var hubLines = File.ReadAllText(hub).Replace("\r\n", "\n").Split('\n').ToList();
+            if (!hubLines.Contains(hubLine) && hubLines.FindLastIndex(line => line.StartsWith($"- [[PBIs/pbi-{pbi}/0")) is var last and >= 0)
             {
-                hubLines.Insert(last + 1, $"- [[PBIs/pbi-{pbi}/06-open-questions|Open questions]]");
+                hubLines.Insert(last + 1, hubLine);
                 File.WriteAllText(hub, string.Join('\n', hubLines));
             }
         }
@@ -189,5 +198,23 @@ public static class VaultQuestions
             var text = Regex.Replace(File.ReadAllText(index).Replace("\r\n", "\n").TrimEnd(), @"(?m)^updated: .*$", $"updated: {now}");
             File.WriteAllText(index, Append(text + (text.Contains("\n## Questions") ? "" : "\n\n## Questions"), entry));
         }
+    }
+
+    // A PBI that gets its first file from a question has no folder in the vault yet: the vault rule gives every PBI
+    // folder a hub note that links its working files, and one line in PBIs/PBIs.md (under "Worked on").
+    static void CreateHubNote(int pbi, string title, string firstLine, string now)
+    {
+        var name = title.Length > 0 ? $" - {title}" : "";
+        File.WriteAllText(Path.Combine(PbiDirectory(pbi), $"pbi-{pbi}.md"),
+            $"---\nupdated: {now}\npbi: {pbi}\ntags: [pbi]\n---\n\n# PBI {pbi}{name}\n\nPart of [[PBIs/PBIs|PBIs]]. Working files, in the format of the workspace `CLAUDE.md` (the dashboard reads them):\n\n{firstLine}\n");
+        var index = Path.Combine(Vault, "PBIs", "PBIs.md");
+        if (!File.Exists(index)) return;
+        var lines = File.ReadAllText(index).Replace("\r\n", "\n").Split('\n').ToList();
+        var start = lines.FindIndex(line => line.Trim() == "## Worked on");
+        if (start < 0 || lines.Any(line => line.Contains($"[[PBIs/pbi-{pbi}/pbi-{pbi}|"))) return;
+        var next = lines.FindIndex(start + 1, line => line.StartsWith("## "));
+        var last = lines.FindLastIndex(next < 0 ? lines.Count - 1 : next - 1, line => line.StartsWith("- "));
+        lines.Insert(last > start ? last + 1 : start + 1, $"- [[PBIs/pbi-{pbi}/pbi-{pbi}|{pbi}]]{name}");
+        File.WriteAllText(index, string.Join('\n', lines));
     }
 }

@@ -29,15 +29,25 @@ public static class Search
         {
             // Who I am, to tell my pull requests from the others: the search may run before the first refresh.
             MyId ??= (string)(await GetAsync("_apis/connectionData?api-version=7.1-preview"))["authenticatedUser"]!["id"]!;
+            // Each of the two searches fails alone: what the other found still shows.
             var workItems = SearchWorkItemsAsync(words, closed);
             var pullRequests = SearchPullRequestsAsync(words, closed);
-            result["workItems"] = await workItems;
-            result["pullRequests"] = await pullRequests;
+            result["workItems"] = await Found(workItems);
+            result["pullRequests"] = await Found(pullRequests);
         }
         catch (Exception exception)
         {
+            Failed(exception);
+        }
+        void Failed(Exception exception)
+        {
             Console.Error.WriteLine($"Search: {exception.Message}");
-            result["adoError"] = exception.Message;
+            result["adoError"] ??= exception.Message;
+        }
+        async Task<JsonArray> Found(Task<JsonArray> search)
+        {
+            try { return await search; }
+            catch (Exception exception) { Failed(exception); return []; }
         }
         result["vault"] = await vault;
         return result;
@@ -151,12 +161,13 @@ public static class Search
             string text;
             try { text = File.ReadAllText(path).Replace("\r\n", "\n"); }
             catch (IOException) { continue; }
-            if (!words.All(word => Holds(text, word) || Holds(file, word))) continue;
-
-            // The frontmatter is not text to quote, but gives the last change and, for a question, its state.
+            // The frontmatter is not text to search or quote (every file has "session" and "updated" there), but it
+            // gives the last change and, for a question, its state.
             var end = text.StartsWith("---\n") ? text.IndexOf("\n---", 3) : -1;
             var head = end > 0 ? text[..end] : "";
-            var lines = (end > 0 ? text[(end + 4)..] : text).Split('\n');
+            var body = end > 0 ? text[(end + 4)..] : text;
+            if (!words.All(word => Holds(body, word) || Holds(file, word))) continue;
+            var lines = body.Split('\n');
             string? Field(string name) => Regex.Match(head, $@"(?m)^{name}:[ \t]*(.*?)(\s+#\s.*)?$") is { Success: true } match && match.Groups[1].Value.Trim() is { Length: > 0 } value ? value : null;
             var title = lines.FirstOrDefault(line => line.StartsWith("# "))?[2..].Trim() ?? Path.GetFileNameWithoutExtension(path);
             var hits = lines.Where(line => !line.StartsWith("# ") && words.Any(word => Holds(line, word))).ToList();

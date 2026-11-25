@@ -360,7 +360,7 @@ const texts = {
     qCounts: { waiting: n => `${n} en attente`, draft: n => `${n} brouillon${s(n)}`, resolved: n => `${n} résolue${s(n)}`, dropped: n => `${n} abandonnée${s(n)}` },
     qChase: "à relancer", qNoPbi: "Hors PBI", qAskedTo: "posée à", qAskedOnly: "posée", qDraftMeta: "rédigée, pas encore posée",
     qFollows: "suite de", qLedTo: "a entraîné", qOpenMessage: "Ouvrir le message", qShow: "Afficher la question", qHide: "Masquer la question",
-    qIAsked: "Je l'ai posée", qCopy: "Copier le texte", qCopied: "Copié", qDrop: "Abandonner", qReopen: "Rouvrir",
+    qIAsked: "Je l'ai posée", qCopy: "Copier le texte", qCopied: "Copié", qCopyFailed: "Copie impossible", qDrop: "Abandonner", qReopen: "Rouvrir",
     qAnswer: "Saisir une réponse", qDecide: "Trancher moi-même", qFollowUp: "Poser une question liée", qNotes: "Notes",
     qChannels: { ado: "Azure DevOps", teams: "Teams", email: "E-mail", kb: "KB", call: "Appel", other: "Autre", decision: "Ma décision" },
     qTo: "À qui (noms séparés par des virgules)", qChannel: "Canal", qAskedOn: "Posée le", qLink: "Lien vers le message (facultatif)",
@@ -464,7 +464,7 @@ const texts = {
     qCounts: { waiting: n => `${n} waiting`, draft: n => `${n} draft${s(n)}`, resolved: n => `${n} resolved`, dropped: n => `${n} dropped` },
     qChase: "to chase", qNoPbi: "No PBI", qAskedTo: "asked to", qAskedOnly: "asked", qDraftMeta: "written, not asked yet",
     qFollows: "follows", qLedTo: "led to", qOpenMessage: "Open the message", qShow: "Show the question", qHide: "Hide the question",
-    qIAsked: "I asked it", qCopy: "Copy the text", qCopied: "Copied", qDrop: "Drop", qReopen: "Reopen",
+    qIAsked: "I asked it", qCopy: "Copy the text", qCopied: "Copied", qCopyFailed: "Could not copy", qDrop: "Drop", qReopen: "Reopen",
     qAnswer: "Record an answer", qDecide: "Settle it myself", qFollowUp: "Ask a follow-up question", qNotes: "Notes",
     qChannels: { ado: "Azure DevOps", teams: "Teams", email: "E-mail", kb: "KB", call: "Call", other: "Other", decision: "My decision" },
     qTo: "To whom (names separated by commas)", qChannel: "Channel", qAskedOn: "Asked on", qLink: "Link to the message (optional)",
@@ -626,6 +626,14 @@ function vaultPath(link) {
   path.split("/").forEach(part => { if (part === "..") parts.pop(); else if (part && part !== ".") parts.push(part); });
   return parts.join("/");
 }
+
+// A link to another file of the vault opens in the reader instead of leaving the page: on a click, and on a middle
+// click too, which would open a new tab on an address the server does not have.
+function openVaultLink(event) {
+  const link = event.target.closest?.("[data-vault] a[href]"), file = link && vaultPath(link);
+  if (file) { event.preventDefault(); openVaultFile(file); }
+}
+document.addEventListener("auxclick", openVaultLink);
 
 // Opens a markdown file of the vault in the reader (GET /api/vault).
 async function openVaultFile(path) {
@@ -941,7 +949,6 @@ const optionsHtml = (values, names, selected) => values.map(value =>
   `<option value="${esc(value)}"${value === selected ? " selected" : ""}>${esc(names[value] ?? value)}</option>`).join("");
 
 async function loadQuestions() {
-  if (questionForm) return;
   try {
     const response = await fetch("/api/questions");
     if (response.ok) setQuestions(await response.json());
@@ -953,10 +960,13 @@ function setQuestions(list) {
   drawQuestions();
 }
 const drawQuestions = () => { renderQuestions(); renderPbi(); };
-// What is typed in an open question form survives a redraw of its view: taken before, put back in the same form after.
+// What is typed in an open question form survives a redraw of its view (a refresh, a question unfolded): its values,
+// focus and cursor are taken before and put back in the same form after.
 function formValues(view) {
   const form = view.querySelector("form.qform");
+  const focused = form?.contains(document.activeElement) ? document.activeElement : null;
   return form && { key: form.dataset.qsubmit + form.dataset.file, busy: form.dataset.busy,
+    focus: focused && { name: focused.name, start: focused.selectionStart, end: focused.selectionEnd },
     fields: [...form.elements].filter(field => field.name).map(field => ({ name: field.name, type: field.type, value: field.value, checked: field.checked })) };
 }
 function restoreForm(view, kept) {
@@ -971,6 +981,12 @@ function restoreForm(view, kept) {
     if (name === "askedNow") askedToggle(form, checked);
   });
   if (kept.busy) setBusy(form, true);
+  // The field that was being typed in keeps the focus and the cursor.
+  const field = kept.focus?.name && form.elements[kept.focus.name];
+  if (field?.focus) {
+    field.focus({ preventScroll: true });
+    try { field.setSelectionRange(kept.focus.start, kept.focus.end); } catch { }
+  }
 }
 const askedToggle = (form, on) => { const fields = form.querySelector("[data-asked-fields]"); fields.hidden = fields.disabled = !on; };
 // A form being saved cannot be sent again.
@@ -1147,10 +1163,9 @@ function questionClick(e) {
   if (state) postQuestion("state", { file: state.dataset.file, state: state.dataset.qstate });
   if (copy) {
     const q = questions.find(other => other.file === copy.dataset.qcopy);
-    navigator.clipboard?.writeText(q.question).then(() => {
-      copy.textContent = t("qCopied");
-      setTimeout(() => copy.textContent = t("qCopy"), 2000);
-    });
+    // A question without text is its title; without the clipboard (a page not on localhost) the button says so.
+    const done = label => { copy.textContent = t(label); setTimeout(() => copy.textContent = t("qCopy"), 2000); };
+    (navigator.clipboard?.writeText(q.question || q.title) ?? Promise.reject()).then(() => done("qCopied"), () => done("qCopyFailed"));
   }
 }
 document.addEventListener("submit", e => {
@@ -1163,6 +1178,7 @@ document.addEventListener("submit", e => {
   if (form.dataset.file) body.file = form.dataset.file;
   if (form.dataset.qsubmit === "create") {
     body.pbi = Number(body.pbi) || null;
+    body.pbiTitle = lastData?.workItems.find(item => item.id === body.pbi)?.title ?? "";
     body.state = body.askedNow ? "waiting" : "draft";
   }
   postQuestion(form.dataset.qsubmit, body, form);
@@ -1228,14 +1244,15 @@ function renderSearch() {
       ${line ? `<div class="row-line">${line}</div>` : ""}</div>
     <div class="row-actions">${actions}</div></div></article>`;
 
-  // One of my open PBIs opens its page here; another work item can be reviewed with Claude or opened in Azure DevOps.
+  // One of my open PBIs opens its page here; another PBI or bug can be reviewed with Claude (the review is about the
+  // pull requests of a PBI, so not a Feature or a Test Suite); any other opens in Azure DevOps.
   const itemRow = item => {
     const mine = lastData?.workItems.some(workItem => workItem.id === item.id);
     return row(pill(mine ? "WAIT" : "", mine ? t("searchMine")(item.type) : item.type),
       [`#${item.id}`, item.iteration, item.state, item.assignedTo].filter(Boolean).map(esc).join(" · "),
       mark(item.title), mine ? `#pbi/${item.id}` : "", where(item),
       mine ? `<a class="btn" href="#pbi/${item.id}">${esc(t("details"))}</a>`
-        : `${claudeButton("pbi-review", item.id, "claudeReview")}${adoLink(item.url)}`);
+        : `${/^(product backlog item|bug)$/i.test(item.type) ? claudeButton("pbi-review", item.id, "claudeReview") : ""}${adoLink(item.url)}`);
   };
   // A pull request the dashboard already shows opens its page; another active one can be reviewed with Claude, which
   // adds me to its reviewers.
@@ -1254,7 +1271,7 @@ function renderSearch() {
     const question = file.question && [t("qStates")[file.question.state] ?? file.question.state, file.question.to && `${t("qAskedTo")} ${file.question.to}`].filter(Boolean).join(" · ");
     return `<article class="row pad result"><div class="row-meta">${pill(file.question?.state === "waiting" ? "TODO" : file.pbi ? "WAIT" : "", file.pbi ? `PBI #${file.pbi}` : file.folder || "Vault")}
         <span>${[file.file.replaceAll("/", " / "), t("updatedAgo")(ago(file.updated)), file.count > 0 && t("searchPassages")(file.count), question].filter(Boolean).map(esc).join(" · ")}</span></div>
-      <h3><a href="/${esc(encodeURI(file.file))}">${mark(file.title)}</a></h3>
+      <h3><a href="/${esc(file.file.split("/").map(encodeURIComponent).join("/"))}">${mark(file.title)}</a></h3>
       ${file.passages.map(passage => `<div class="row-line">${mark(passage)}</div>`).join("")}</article>`;
   };
   const shownFiles = vault.filter(file => !searchFolder || file.folder === searchFolder);
@@ -1464,8 +1481,7 @@ function tick() {
   const updated = document.getElementById("updated");
   const at = updated.dataset.at ? new Date(updated.dataset.at).toLocaleTimeString(t("locale"), { hour: "2-digit", minute: "2-digit" }) : "-";
   if (!loading) updated.textContent = t("updated")(at);
-  // An open question form would lose what is typed in it: the automatic refresh waits.
-  if (!loading && Date.now() >= nextRefresh && !questionForm) load();
+  if (!loading && Date.now() >= nextRefresh) load();
 }
 
 document.getElementById("lang").onchange = event => {
@@ -1476,7 +1492,12 @@ document.getElementById("lang").onchange = event => {
   render();
   if (!loading) tick();
 };
-document.getElementById("refresh").onclick = () => activeView === "daily" ? loadDaily(true) : load();
+document.getElementById("refresh").onclick = () => {
+  if (activeView === "daily") return loadDaily(true);
+  // On the Search view, the search shown runs again too.
+  if (activeView === "search") { searchData = null; loadSearch(searchQuery); }
+  load();
+};
 
 // Daily tab: what I did on the previous working day (Friday on a Monday), from /api/daily, for the daily meeting.
 // The arrows move one working day; a day is loaded once, the refresh button reloads it.
@@ -1650,9 +1671,7 @@ document.getElementById("pbiReview").onsubmit = event => {
 document.getElementById("pbiReviewId").oninput = clearReviewError;
 document.getElementById("reviewKind").onchange = () => { clearReviewError(); updateReviewPlaceholder(); };
 document.addEventListener("click", e => {
-  // A link to another markdown file of the vault opens in the reader instead of leaving the page.
-  const vaultLink = e.target.closest("[data-vault] a[href]"), vaultFile = vaultLink && vaultPath(vaultLink);
-  if (vaultFile) { e.preventDefault(); openVaultFile(vaultFile); }
+  openVaultLink(e);
   const doc = e.target.closest("[data-doc]");
   if (doc) openDocument(doc.dataset.doc);
   const claude = e.target.closest("[data-claude]");
