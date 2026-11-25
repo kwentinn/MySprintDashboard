@@ -152,6 +152,20 @@ app.MapPost("/api/sessions/{kind}/{id:int}", async (HttpRequest request, string 
     }
 });
 
+// The words of ?q= looked for in Azure DevOps and in the vault; ?closed=1 also looks into what is closed in Azure DevOps.
+app.MapGet("/api/search", async (HttpRequest request) =>
+{
+    try
+    {
+        return Results.Content((await SearchAsync(request.Query["q"], request.Query["closed"] == "1")).ToJsonString(), "application/json");
+    }
+    catch (Exception exception)
+    {
+        Console.Error.WriteLine(exception.Message);
+        return Results.Content(new JsonObject { ["detail"] = exception.Message }.ToJsonString(), "application/json", statusCode: 500);
+    }
+});
+
 // A markdown file of the vault (?path=, relative to the vault), for the reader the page opens on a link between notes.
 app.MapGet("/api/vault", (HttpRequest request) => VaultFile(request.Query["path"]) is { } file
     ? Results.Content(file.ToJsonString(), "application/json") : Results.NotFound());

@@ -8,6 +8,7 @@ global using static Ado;
 global using static Claude;
 global using static Daily;
 global using static Prompts;
+global using static Search;
 global using static Settings;
 global using static VaultQuestions;
 global using static VaultStore;

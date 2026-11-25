@@ -22,6 +22,7 @@ for a PBI (see "What the page shows").
 | `Ado.cs` | Azure DevOps: my PBIs, the pull requests, their threads, votes and CI, the backlog order. |
 | `Daily.cs` | What I did on a day, for the daily tab, and its AI summary. |
 | `VaultStore.cs` | The vault: reports, PBI working files, and the record of the Claude sessions. |
+| `Search.cs` | The search in Azure DevOps and in the vault (see Search). |
 | `VaultQuestions.cs` | The questions of the vault, read and written (see Questions). |
 | `Claude.cs` | The Claude sessions: the terminal tab that runs one and its prompts. |
 | `Settings.cs` | Reads `dashboard.settings.json`. |
@@ -107,13 +108,14 @@ The browser tab shows a checklist icon; when rows are to do, it gets an orange b
 title starts with it ("(3) Today"), so the tab tells whether something waits without opening it.
 
 The header shows the date and how many rows are **to do** (orange), **in progress** (grey), **waiting** (blue) and
-**done** (green); hovering a counter explains its status. The page has five views, kept in the address so that a
+**done** (green); hovering a counter explains its status. The page has six views, kept in the address so that a
 reload and the browser's back button work:
 
 | View | Address | Content |
 | :--- | :------ | :------ |
 | Today | `/` | the pull requests waiting for my review, then my PBIs, one row each |
 | Daily | `#daily` | what I did on the previous working day |
+| Search | `#search/<words>` | what the words typed in the header find in Azure DevOps and in the vault |
 | Questions | `#questions` | every question asked to the PO or the team, the ones waiting for an answer first |
 | Pull request | `#pr/<id>/<tab>` | one pull request: its threads, my review, the analysis of its threads |
 | PBI | `#pbi/<id>/<tab>` | one PBI: its working files, its pull requests, its history |
@@ -273,6 +275,33 @@ Claude sessions (`Origin` and `X-Dashboard: 1`). It only writes question files a
 or checks itself. A file written by the dashboard names `dashboard` as its session. The automatic refresh waits
 while a form is open.
 
+### Search
+
+The box of the header (the `/` key goes to it) looks for the words typed in Azure DevOps and in the vault. Every
+word must be found, whatever its case. A number alone opens what it names when it is mine: `#1201` the page of that
+PBI, `!4215` or `PR 4215` the page of that pull request; otherwise it is searched like any word.
+
+| Where | What is searched | A result shows |
+| :---- | :--------------- | :------------- |
+| Work items of the project | title, description, acceptance criteria and comments, as words that start with the ones typed ("allergen" finds "allergens"); the id | type, id, sprint, state, who it is assigned to, and where the words are (title, description with its passage, or comments) |
+| Pull requests of the project | title and description of the 200 last active ones; the id | id, repository and target branch, author, and where the words are |
+| Markdown files of the vault | the text and the path of every `.md` file, any part of a word | its folder or PBI, its path, its last change, how many lines hold a word and the first three, the state of a question |
+
+The 30 first work items and pull requests are shown: the item whose id was typed, then the ones whose title holds
+the words, each last changed first. **Closed ones too** adds the work items that are Done, Removed or Closed and
+the 500 last pull requests whatever their status. The 40 first files of the vault are shown: those whose title or
+path holds the words, then those with the most passages, then the last changed; French copies (`.fr.md`) and
+hidden folders are left out. Chips filter by source and by folder of the vault.
+
+One of my open PBIs, or a pull request the dashboard already shows, opens its page. Another work item gets
+**Review with Claude** and a link to Azure DevOps; another active pull request too, and that review adds me to its
+reviewers. A file of the vault opens in the reader.
+
+The server answers `GET /api/search?q=<words>&closed=1`. Work items go through a WIQL query on the full-text index
+(`CONTAINS WORDS`): a part of a word in the title (`CONTAINS`) scans the whole project and times out. Azure DevOps
+has no text search on pull requests, so they are listed and filtered by the server, and their comment threads are
+not searched. If Azure DevOps fails, the results of the vault still show, with the error above them.
+
 ### Reader of the vault's files
 
 A link from one markdown file of the vault to another opens in the page, in a reader, instead of leading nowhere:
@@ -412,7 +441,8 @@ dotnet test tests
 ```
 
 The tests cover `VaultQuestions.cs`, the only code that changes files of the vault, and the file the reader may
-open (`VaultFile`, nothing outside the vault): what is read from a question
+open (`VaultFile`, nothing outside the vault), and `Search.cs` for the vault part of the search (files found, order,
+passages): what is read from a question
 file (frontmatter, sections, answers), which files count as questions, and what the forms write (a new question
 with its number and its lines in the indexes, a change of state, an answer placed before the notes), plus the
 paths and texts it refuses. Each test works in an empty vault under the temporary folder, never in the real one.
