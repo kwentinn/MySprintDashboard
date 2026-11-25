@@ -284,7 +284,7 @@ PBI, `!4215` or `PR 4215` the page of that pull request; otherwise it is searche
 | Where | What is searched | A result shows |
 | :---- | :--------------- | :------------- |
 | Work items of the project | title, description, acceptance criteria and comments, as words that start with the ones typed ("allergen" finds "allergens"); the id | type, id, sprint, state, who it is assigned to, and where the words are (title, description with its passage, or comments) |
-| Pull requests of the project | title and description of the 200 last active ones; the id | id, repository and target branch, author, and where the words are |
+| Pull requests of the project | title and the first 400 characters of the description of the 200 last active ones; the id | id, repository and target branch, author, and where the words are |
 | Markdown files of the vault | the text and the path of every `.md` file, any part of a word | its folder or PBI, its path, its last change, how many lines hold a word and the first three, the state of a question |
 
 The 30 first work items and pull requests are shown: the item whose id was typed, then the ones whose title holds
@@ -298,9 +298,11 @@ One of my open PBIs, or a pull request the dashboard already shows, opens its pa
 reviewers. A file of the vault opens in the reader.
 
 The server answers `GET /api/search?q=<words>&closed=1`. Work items go through a WIQL query on the full-text index
-(`CONTAINS WORDS`): a part of a word in the title (`CONTAINS`) scans the whole project and times out. Azure DevOps
-has no text search on pull requests, so they are listed and filtered by the server, and their comment threads are
-not searched. If Azure DevOps fails, the results of the vault still show, with the error above them.
+(`CONTAINS WORDS`): a part of a word in the title (`CONTAINS`) scans the whole project and times out. A word is cut
+at its punctuation ("rows[0]" is "rows" and "0"); a piece of one character is left out and one of two is looked for
+whole, since a wildcard on so little times out too. A work item whose id is typed is found whatever its state.
+Azure DevOps has no text search on pull requests, so they are listed and filtered by the server: the list cuts a
+description at 400 characters, and comment threads are not searched. If Azure DevOps fails, the results of the vault still show, with the error above them.
 
 ### Reader of the vault's files
 

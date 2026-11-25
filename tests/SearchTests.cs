@@ -104,6 +104,27 @@ public sealed class SearchTests : IDisposable
     }
 
     [Fact]
+    public void WiqlTerms_cut_the_words_at_punctuation_and_keep_short_ones_whole() =>
+        Assert.Equal(["rows*", "create*", "v2", "public*", "mourad*", "248949*"], WiqlTerms(["rows[0]", "(create)", "/v2/public", "mourad's", "a", "248949", "rows"]));
+
+    [Fact]
+    public void WorkItemsFilter_leaves_closed_items_out_except_the_one_whose_id_was_typed()
+    {
+        const string fields = "[System.Title] CONTAINS WORDS '{0}' OR [System.Description] CONTAINS WORDS '{0}' OR [Microsoft.VSTS.Common.AcceptanceCriteria] CONTAINS WORDS '{0}' OR [System.History] CONTAINS WORDS '{0}'";
+        const string open = " AND [System.State] NOT IN ('Done', 'Removed', 'Closed')";
+        var invoice = "(" + string.Format(fields, "invoice*") + ")";
+        var number = "(" + string.Format(fields, "1201*") + ")";
+
+        Assert.Equal(invoice + open, WorkItemsFilter(["invoice"], closed: false));
+        Assert.Equal(invoice, WorkItemsFilter(["invoice"], closed: true));
+        // A typed number is looked for as text, under the state filter, and as an id, outside it.
+        Assert.Equal($"(({invoice} AND {number}{open}) OR [System.Id] IN (1201))", WorkItemsFilter(["invoice", "1201"], closed: false));
+        // Nothing the index can look for: a lone character, or only punctuation.
+        Assert.Null(WorkItemsFilter(["a", "[]"], closed: false));
+        Assert.Equal("[System.Id] IN (7)", WorkItemsFilter(["7"], closed: false));
+    }
+
+    [Fact]
     public void PlainText_drops_html_and_markdown()
     {
         Assert.Equal("Keep the invoice & the PDF", PlainText("<div>Keep the <b>invoice</b> &amp; the&nbsp;PDF</div>"));

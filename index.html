@@ -1203,10 +1203,12 @@ async function loadSearch(query) {
   renderSearch();
 }
 
-// A text with the searched words marked.
+// A text with the searched words marked. The text is cut at the words first and each piece escaped after, so a word
+// never matches inside an escaped character ("39" in "&#39;").
 function highlight(text, words) {
   const found = words.filter(Boolean).map(word => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-  return found.length ? esc(text).replace(new RegExp(found.map(esc).join("|"), "gi"), match => `<mark>${match}</mark>`) : esc(text);
+  if (!found.length) return esc(text);
+  return String(text).split(new RegExp(`(${found.join("|")})`, "gi")).map((part, index) => index % 2 ? `<mark>${esc(part)}</mark>` : esc(part)).join("");
 }
 
 function renderSearch() {

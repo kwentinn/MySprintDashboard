@@ -27,6 +27,8 @@ public static class Search
         var vault = Task.Run(() => SearchVault(words));
         try
         {
+            // Who I am, to tell my pull requests from the others: the search may run before the first refresh.
+            MyId ??= (string)(await GetAsync("_apis/connectionData?api-version=7.1-preview"))["authenticatedUser"]!["id"]!;
             var workItems = SearchWorkItemsAsync(words, closed);
             var pullRequests = SearchPullRequestsAsync(words, closed);
             result["workItems"] = await workItems;
@@ -47,18 +49,10 @@ public static class Search
     // times out after 30 seconds.
     public static async Task<JsonArray> SearchWorkItemsAsync(string[] words, bool closed)
     {
-        var conditions = words.Select(word =>
-        {
-            var text = WiqlText(word) + "*";
-            return $"([System.Title] CONTAINS WORDS '{text}' OR [System.Description] CONTAINS WORDS '{text}'"
-                + $" OR [Microsoft.VSTS.Common.AcceptanceCriteria] CONTAINS WORDS '{text}' OR [System.History] CONTAINS WORDS '{text}'"
-                + (int.TryParse(word, out var id) ? $" OR [System.Id] = {id}" : "") + ")";
-        });
+        if (WorkItemsFilter(words, closed) is not { } filter) return [];
         var wiql = new JsonObject
         {
-            ["query"] = $"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{WiqlText(Project)}' AND {string.Join(" AND ", conditions)}"
-                + (closed ? "" : " AND [System.State] NOT IN ('Done', 'Removed', 'Closed')")
-                + " ORDER BY [System.ChangedDate] DESC",
+            ["query"] = $"SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = '{WiqlText(Project)}' AND {filter} ORDER BY [System.ChangedDate] DESC",
         };
         var ids = (await PostAsync($"{Project}/_apis/wit/wiql?$top={MaxResults}", wiql))["workItems"]!.AsArray().Select(item => (int)item!["id"]!).ToList();
         // The item whose id was typed first, then the ones whose title holds the words, each group last changed first.
@@ -89,9 +83,30 @@ public static class Search
         })]);
     }
 
+    // The words as the full-text index takes them: cut at what is not a letter or a digit ("rows[0]" is "rows" and "0"),
+    // then as the start of a word ("rows*"). A term of one character is left out and one of two is looked for whole:
+    // a wildcard on so little ("0*") makes Azure DevOps time out after 30 seconds.
+    public static string[] WiqlTerms(string[] words) =>
+        [.. words.SelectMany(word => Regex.Split(word, @"[^\p{L}\p{N}_]+")).Where(part => part.Length >= 2).Distinct()
+            .Select(part => part.Length >= 3 ? part + "*" : part)];
+
+    // The WHERE part of the search: every term in the title, description, acceptance criteria or comments of an item
+    // that is not closed (unless `closed`), or an item whose id was typed, whatever its state. Null when the words
+    // give nothing to look for.
+    public static string? WorkItemsFilter(string[] words, bool closed)
+    {
+        var terms = WiqlTerms(words).Select(term => $"([System.Title] CONTAINS WORDS '{term}' OR [System.Description] CONTAINS WORDS '{term}'"
+            + $" OR [Microsoft.VSTS.Common.AcceptanceCriteria] CONTAINS WORDS '{term}' OR [System.History] CONTAINS WORDS '{term}')").ToList();
+        var ids = words.Where(word => int.TryParse(word, out var id) && id > 0).Select(int.Parse).ToList();
+        var byText = terms.Count == 0 ? null : string.Join(" AND ", terms) + (closed ? "" : " AND [System.State] NOT IN ('Done', 'Removed', 'Closed')");
+        var byId = ids.Count == 0 ? null : $"[System.Id] IN ({string.Join(", ", ids)})";
+        return byText is null ? byId : byId is null ? byText : $"(({byText}) OR {byId})";
+    }
+
     // Pull requests of the project whose title or description hold every word (or whose id is one of them), newest
     // first. Azure DevOps has no text search on pull requests: the last ones are listed and filtered here, so an old
-    // closed one may be missed, and comment threads are not looked into.
+    // closed one may be missed, comment threads are not looked into, and a description counts for its first 400
+    // characters only (the list cuts it there).
     public static async Task<JsonArray> SearchPullRequestsAsync(string[] words, bool closed)
     {
         var list = await GetAsync($"{Project}/_apis/git/pullrequests?searchCriteria.status={(closed ? "all" : "active")}&$top={(closed ? 500 : 200)}");
