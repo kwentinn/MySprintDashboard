@@ -7,7 +7,7 @@
     <!-- As when this was a single-file app: fit for a native (AOT) publish, and the build says so when it stops being.
          publish.ps1 publishes without it (-p:PublishAot=false), which needs no C++ build tools. -->
     <PublishAot>true</PublishAot>
-    <!-- index.html and the settings are read from this folder, not copied next to the build. -->
+    <!-- The page (wwwroot) and the settings are read from this folder, not copied next to the build. -->
     <EnableDefaultContentItems>false</EnableDefaultContentItems>
   </PropertyGroup>
 

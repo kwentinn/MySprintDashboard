@@ -1,5 +1,5 @@
 # Publishes the dashboard into the publish\ folder (see "As an executable" in the README): dashboard.exe with a copy
-# of index.html and dashboard.settings.json next to it, so the folder runs on its own and opens the browser.
+# of the page (wwwroot) and of dashboard.settings.json next to it, so the folder runs on its own and opens the browser.
 # A running dashboard.exe locks its file: it is stopped first, and the new one is started. -NoStart leaves it stopped.
 #
 #   .\publish.ps1
@@ -25,8 +25,12 @@ if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed ($LASTEXITCODE): publish\ is unchanged."
 }
 
-# The page and the settings of this folder go with it: the executable reads them next to itself.
-Copy-Item (Join-Path $PSScriptRoot 'index.html'), (Join-Path $PSScriptRoot 'dashboard.settings.json') $target -Force
+# The page (wwwroot) and the settings of this folder go with it: the executable reads them next to itself. The page
+# is replaced whole, so a file removed here does not stay there.
+$page = Join-Path $target 'wwwroot'
+if (Test-Path $page) { Remove-Item $page -Recurse -Force }
+Copy-Item (Join-Path $PSScriptRoot 'wwwroot') $target -Recurse
+Copy-Item (Join-Path $PSScriptRoot 'dashboard.settings.json') $target -Force
 Write-Host "Published in $target ($((Get-Item $exe).LastWriteTime))."
 
 # It opens the browser itself.

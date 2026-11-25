@@ -27,7 +27,7 @@ for a PBI (see "What the page shows").
 | `Claude.cs` | The Claude sessions: the terminal tab that runs one and its prompts. |
 | `Settings.cs` | Reads `dashboard.settings.json`. |
 | `tests/` | The tests of the vault's questions, on a temporary folder (see Tests). |
-| `index.html` | The page. Plain HTML, CSS and JavaScript. It is read again on every request, so you can edit it without restarting the server. |
+| `wwwroot/` | The page, plain HTML, CSS and JavaScript with no build step: `index.html` (the markup), `css/app.css` (the styles) and `js/app.js` (the script). The server serves this folder and nothing else; the browser asks for each file again on every load, so you can edit them without restarting the server. |
 | `dashboard.settings.json` | The settings of this machine (not committed): copy `dashboard.settings.example.json` and fill it in (below). |
 | `<vault>/Reviews/<pr>-review.md` | My review notes, shown on the matching pull request when the file exists. |
 | `<vault>/Reviews/<pr>-threads.md` | The analysis of a pull request's unresolved threads, written by an **Analyze with Claude** session. |
@@ -81,19 +81,19 @@ runtime) into the `publish` folder, which git ignores:
 ```
 
 The script stops the dashboard of this repository if it runs (a running executable cannot be replaced), publishes
-straight into `publish`, copies `index.html` and `dashboard.settings.json` next to `dashboard.exe`, and starts it
+straight into `publish`, copies the page (`wwwroot`) and `dashboard.settings.json` next to `dashboard.exe`, and starts it
 (`-NoStart` leaves it stopped). If the build fails, the executable is unchanged and the dashboard that was stopped
 is started again. By hand, it is:
 
 ```powershell
 dotnet publish dashboard.csproj -o publish -r win-x64 -p:PublishAot=false -p:PublishSingleFile=true --self-contained false
-Copy-Item index.html, dashboard.settings.json publish
+Copy-Item wwwroot, dashboard.settings.json publish -Recurse -Force
 ```
 
-With `index.html` next to it, `dashboard.exe` reads the page and `dashboard.settings.json` from its own folder and
+With the `wwwroot` folder next to it, `dashboard.exe` reads the page and `dashboard.settings.json` from its own folder and
 opens the browser when it starts. The `publish` folder is such a copy: publish again after a change of the server's
 code, of the page or of the settings. The folder can be copied elsewhere; set `workspace` in its settings then, if
-the folder of the checkouts is not the parent of this repository. Without `index.html` next to it, the executable
+the folder of the checkouts is not the parent of this repository. Without `wwwroot` next to it, the executable
 reads both files from this repository, like `dotnet run`, and does not open the browser. The default native (AOT)
 publish also works, with the Desktop Development for C++ workload of Visual Studio installed.
 
@@ -103,7 +103,7 @@ The page is in English or French; pick one with the selector at the top right. T
 (`localStorage`), and `?lang=en` or `?lang=fr` forces one. Without either, the page follows the browser's language,
 and falls back to English.
 
-All texts sit in the `texts` object at the top of the script in `index.html`, one dictionary per language. To add a
+All texts sit in the `texts` object at the top of `wwwroot/js/app.js`, one dictionary per language. To add a
 language, copy the `en` dictionary under a new code (`de`, ...), translate it, and add an `<option>` to the
 `#lang` selector. Data from Azure DevOps (titles, states, work item types) is shown as it is.
 

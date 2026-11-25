@@ -8,7 +8,7 @@
 //
 // The organization, project, team, vault and PAT variable come from dashboard.settings.json next to this file (see
 // dashboard.settings.example.json); the PAT itself is read from that environment variable and only put in the
-// Authorization header. The page is index.html next to this file, read on every request so it can be edited without
+// Authorization header. The page is the wwwroot folder next to this file, read on every request so it can be edited without
 // a restart. Buttons on the cards open a Claude session (review a pull request, start a PBI) in a new Windows
 // Terminal tab.
 
@@ -16,9 +16,9 @@
 var portIndex = Array.IndexOf(args, "--port");
 var Url = $"http://localhost:{(portIndex >= 0 && portIndex + 1 < args.Length ? int.Parse(args[portIndex + 1]) : 5099)}";
 
-// A published executable with index.html next to it is on its own: it reads the page and the settings from its own
+// A published executable with the wwwroot folder next to it is on its own: it reads the page and the settings from its own
 // folder and opens the browser when it starts. Otherwise (dotnet run) they come from the folder of this file.
-var standalone = File.Exists(Path.Combine(AppContext.BaseDirectory, "index.html"));
+var standalone = File.Exists(Path.Combine(AppContext.BaseDirectory, "wwwroot", "index.html"));
 var home = standalone ? AppContext.BaseDirectory : SourceDirectory();
 
 if (Settings.Load(Path.Combine(home, "dashboard.settings.json")) is { } settingsError)
@@ -41,7 +41,15 @@ builder.WebHost.UseUrls(Url);
 builder.Logging.SetMinimumLevel(LogLevel.Warning);
 var app = builder.Build();
 
-var page = Path.Combine(home, "index.html");
+// The page: index.html at "/", and the files it names (css, js) from the same folder, the only one served. The
+// browser asks again on each load (no-cache), so an edit shows without a restart.
+var web = Path.Combine(home, "wwwroot");
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(web),
+    OnPrepareResponse = context => context.Context.Response.Headers.CacheControl = "no-cache",
+});
+var page = Path.Combine(web, "index.html");
 app.MapGet("/", () => Results.Content(File.ReadAllText(page), "text/html; charset=utf-8"));
 app.MapGet("/api/today", async () =>
 {
