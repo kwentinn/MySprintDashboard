@@ -2,7 +2,7 @@ import { hooks, shared } from "../state.js";
 import { t } from "../texts.js";
 import { esc, shortDate } from "../util.js";
 
-// Live updates and notifications. The server reads Azure DevOps and the vault again every minute and sends one
+// Live updates and notifications. The server reads Azure DevOps and the vault again every five minutes and sends one
 // message each time (GET /api/events, server-sent events): when it read them, and what changed since the last
 // time. The header says whether the page is listening; the bell opens the notifications of the last seven days
 // (GET /api/notifications), a banner announces the ones that just arrived, and the rows of the Today view carry the

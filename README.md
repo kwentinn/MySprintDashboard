@@ -23,7 +23,7 @@ for a PBI (see "What the page shows").
 | `Daily.cs` | What I did on a day, for the daily tab, and its AI summary. |
 | `VaultStore.cs` | The vault: reports, PBI working files, and the record of the Claude sessions. |
 | `Search.cs` | The search in Azure DevOps and in the vault (see Search). |
-| `Live.cs` | The live updates: the reading every minute, what changed, the notifications (see Live updates). |
+| `Live.cs` | The live updates: the reading every five minutes, what changed, the notifications (see Live updates). |
 | `VaultQuestions.cs` | The questions of the vault, read and written (see Questions). |
 | `Claude.cs` | The Claude sessions: the terminal tab that runs one and its prompts. |
 | `Settings.cs` | Reads `dashboard.settings.json`. |
@@ -69,7 +69,7 @@ dotnet run
 
 Run it in this folder. Then open http://localhost:5099. The first start compiles the program, which takes a few seconds. Stop it with Ctrl+C.
 
-The server reads Azure DevOps again every minute while the page is open (see Live updates). Use the refresh button to read at once; `?refresh=<seconds>` sets the
+The server reads Azure DevOps again every five minutes while the page is open (see Live updates). Use the refresh button to read at once; `?refresh=<seconds>` sets the
 interval the page falls back to when it cannot listen to the server (for example http://localhost:5099/?refresh=120).
 
 ### As an executable
@@ -286,7 +286,7 @@ left out of the list, with the reason on the server console.
 ### Live updates
 
 The page no longer asks for its data every ten minutes: the server reads Azure DevOps and the vault again **every
-minute** while a page is open, and pushes the result. The header says so: **Live · ADO checked 40 s ago**, or in
+five minutes** while a page is open, and pushes the result. The header says so: **Live · ADO checked 2 min ago**, or in
 red that the connection to the server is lost (the browser then reconnects on its own, and the page asks on its
 own meanwhile, every ten minutes or `?refresh=<seconds>`). The refresh button still forces a reading at once.
 
@@ -319,7 +319,7 @@ the application (next to the executable for a published one, in this repository 
 | `snapshot.json` | what the last reading saw, so that what changed while the application was stopped is notified at the next start |
 
 The server sends its messages as server-sent events (`GET /api/events`): no library on either side, and the
-browser reconnects by itself. `GET /api/today` answers the last reading when it is under a minute old, a new one
+browser reconnects by itself. `GET /api/today` answers the last reading when it is under five minutes old, a new one
 otherwise or with `?refresh=1`; `GET /api/notifications` gives the seven days and `POST /api/notifications/read`
 marks them read. Nothing is read from Azure DevOps while no page listens, and a hidden tab stops listening until it shows again: the server rests when nobody looks, and many tabs do not each hold a connection.
 

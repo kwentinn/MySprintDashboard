@@ -4,7 +4,7 @@
 // Azure DevOps, Daily.cs builds a day's activity, VaultStore.cs and VaultQuestions.cs read and write the vault,
 // Claude.cs opens the sessions.
 //
-//   dotnet run                     then open http://localhost:5099 (the server reads Azure DevOps again every minute while it is open)
+//   dotnet run                     then open http://localhost:5099 (the server reads Azure DevOps again every five minutes while it is open)
 //
 // The organization, project, team, vault and PAT variable come from dashboard.settings.json next to this file (see
 // dashboard.settings.example.json); the PAT itself is read from that environment variable and only put in the
@@ -56,7 +56,7 @@ app.UseStaticFiles(new StaticFileOptions
 });
 var page = Path.Combine(web, "index.html");
 app.MapGet("/", () => Results.Content(File.ReadAllText(page), "text/html; charset=utf-8"));
-// The data of the Today view: the last reading when it is under a minute old, a new one otherwise or with ?refresh=1.
+// The data of the Today view: the last reading when it is under five minutes old, a new one otherwise or with ?refresh=1.
 app.MapGet("/api/today", async (HttpRequest request) =>
 {
     try
@@ -167,7 +167,7 @@ app.MapPost("/api/sessions/{kind}/{id:int}", async (HttpRequest request, string 
 });
 
 // Live updates (server-sent events): one message each time the server has read Azure DevOps and the vault again,
-// every minute while a page listens, with what changed since the last time.
+// every five minutes while a page listens, with what changed since the last time.
 app.MapGet("/api/events", async (HttpContext context) =>
 {
     context.Response.Headers.ContentType = "text/event-stream";

@@ -59,7 +59,7 @@ function translatePage() {
 }
 
 // Draws the page from the data of the server: its last reading of Azure DevOps and the vault (it reads them again
-// every minute while the page listens), or a new reading with `refresh`.
+// every five minutes while the page listens), or a new reading with `refresh`.
 async function load(refresh = false) {
   if (shared.loading) return;
   shared.loading = true;

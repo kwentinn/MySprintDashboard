@@ -1,12 +1,13 @@
 using System.Threading.Channels;
 
-// Live updates. The server reads Azure DevOps and the vault again every minute while a page is open, tells what
+// Live updates. The server reads Azure DevOps and the vault again every five minutes while a page is open, tells what
 // changed since the last time (notifications), keeps the result for the page and pushes it through server-sent
 // events (GET /api/events). Notifications are kept seven days, one .jsonl file a day, in the notifications folder
 // next to the application.
 public static class Live
 {
-    static readonly TimeSpan Period = TimeSpan.FromMinutes(1);
+    // How often Azure DevOps and the vault are read again: each reading is dozens of calls to Azure DevOps.
+    static readonly TimeSpan Period = TimeSpan.FromMinutes(5);
     const int DaysKept = 7;
 
     // Where the notifications are kept; set once by Program.
@@ -20,7 +21,7 @@ public static class Live
 
     // ------------------------------------------------------------ the data of the page, read again when it is old
 
-    // The answer of /api/today: the last one when it is under a minute old, unless `refresh`.
+    // The answer of /api/today: the last one when it is under five minutes old, unless `refresh`.
     public static async Task<string> TodayAsync(bool refresh) =>
         !refresh && todayJson is not null && DateTimeOffset.Now - checkedAt < Period ? todayJson : await RefreshAsync();
 
@@ -67,7 +68,7 @@ public static class Live
         }
     }
 
-    // Every minute, while a page listens: nobody to tell, nothing to ask Azure DevOps.
+    // Every five minutes, while a page listens: nobody to tell, nothing to ask Azure DevOps.
     public static async Task RunAsync(CancellationToken stopping)
     {
         try
