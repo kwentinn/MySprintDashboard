@@ -14,6 +14,7 @@
       <div><h1 id="today"></h1><div class="counts" id="counts"></div></div>
       <div class="meta">
         <span id="updated" data-i18n="loading"></span>
+        <button id="bell" class="icon" data-bell aria-expanded="false" data-i18n-title="notificationsTitle"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span id="bellCount" class="badge" hidden></span></button>
         <button id="refresh" class="icon" data-i18n-title="refreshNow"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg></button>
         <select id="lang" aria-label="Language"><option value="en">EN</option><option value="fr">FR</option></select>
       </div>
@@ -22,7 +23,7 @@
       <form class="search" id="searchForm" role="search"><input id="searchInput" type="search" autocomplete="off" data-i18n-placeholder="searchPlaceholder"><kbd aria-hidden="true">/</kbd></form></nav>
   </div>
 </header>
-<div class="wrap"><div id="error"></div></div>
+<div class="wrap"><div id="error"></div><div id="liveBanner" role="status" hidden></div></div>
 <main id="todayView" class="wrap view">
   <section class="group">
     <div class="head-row">
@@ -68,6 +69,7 @@
 <section id="questionsView" class="wrap view" hidden></section>
 <section id="pbiView" class="wrap view" hidden></section>
 <section id="prView" class="wrap view" hidden></section>
+<aside id="notificationsPanel" hidden></aside>
 <dialog id="reviewDialog">
   <div class="bar"><span class="row-actions"><button id="reviewBack" data-i18n="back" hidden></button><span id="reviewFile"></span></span><button id="reviewClose" data-i18n="close"></button></div>
   <div class="markdown" id="reviewBody"></div>

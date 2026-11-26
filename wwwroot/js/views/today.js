@@ -3,15 +3,17 @@ import { hooks, shared } from "../state.js";
 import { itemAction, itemActivity, prAction, rank, signals } from "../status.js";
 import { t } from "../texts.js";
 import { ago, cap, esc, latest, orderPill, pill, statusOf } from "../util.js";
+import { noteLine } from "./notifications.js";
 
 // A row of the Today tab: the pill says what it asks of me, then what it is, one useful sentence and one main
-// action. The title and Details open the page of the PBI or of the pull request, where everything else is.
-function rowHtml({ status, pillText, order = "", meta, title, href, line, lineClass = "", primary }) {
-  return `<article class="row ${status}">
+// action. The title and Details open the page of the PBI or of the pull request, where everything else is. `extra`
+// is what just happened to it: the line of its last unread notification, and a vault status that is late.
+function rowHtml({ status, pillText, order = "", meta, title, href, line, lineClass = "", primary, extra = "" }) {
+  return `<article class="row ${status} ${extra ? "fresh" : ""}">
     <div class="row-main"><div class="row-text">
         <div class="row-meta">${order}${pill(status, pillText)}<span>${meta}</span></div>
         <h3><a href="${href}">${esc(title)}</a></h3>
-        ${line ? `<div class="row-line ${lineClass}">${line}</div>` : ""}</div>
+        ${line ? `<div class="row-line ${lineClass}">${line}</div>` : ""}${extra}</div>
       <div class="row-actions">${primary || ""}<a class="btn" href="${href}">${esc(t("details"))}</a></div></div></article>`;
 }
 
@@ -22,7 +24,7 @@ function reviewRow(pr) {
   return { status, activity: latest(pr.lastActivity, pr.review?.updated), html: rowHtml({
     status, pillText: cap(hint),
     meta: `PR ${pr.id} · ${esc(pr.repository)} · ${esc(pr.author)} · ${esc(t("since")(ago(pr.createdDate)))}`,
-    title: pr.title, href: `#pr/${pr.id}`, line: signals(pr),
+    title: pr.title, href: `#pr/${pr.id}`, line: signals(pr), extra: noteLine("pr", pr.id),
     primary: readFirst ? `<a class="btn" href="#pr/${pr.id}/review">${esc(t("readMyReview"))}</a>`
       : claudeButton("review", pr.id, "claudeReview", "", status === "TODO" ? "primary" : "") }) };
 }
@@ -35,11 +37,18 @@ function itemRow(item) {
   const [lineClass, line] = state?.fields.blockedBy ? ["bad", `${esc(t("blockedBy"))} ${esc(state.fields.blockedBy)}`]
     : state?.fields.next ? ["", `<span class="muted">${esc(t("nextAction"))}</span> ${esc(state.fields.next)}`]
     : ["muted", esc(t("changed")(ago(activity)))];
+  // The status of the vault is late when the PBI changed state in Azure DevOps after the status was written: the
+  // row says so, and its main action becomes to have Claude write the status again.
+  const lastState = (item.history ?? []).filter(event => event.type === "state").sort((a, b) => new Date(a.date) - new Date(b.date)).pop();
+  const late = state && lastState && new Date(lastState.date) > new Date(state.fields.updated || state.file.updated);
+  const lateLine = late ? `<div class="row-line">${pill("TODO", t("vaultLate"), "small")} ${esc(t("vaultLateLine")(lastState.to))}</div>` : "";
+  const updateStatus = `<button class="primary" data-claude="step/${item.id}" data-query="&amp;step=00-status" data-label="claudeStatus">${esc(t("claudeStatus"))}</button>`;
   return { status, activity, html: rowHtml({
     status, pillText: t("statusNames")[status], order: orderPill(item.backlogOrder, item.iteration),
     // The sprint only when the filter shows several.
     meta: [`#${item.id}`, selectedSprints.size !== 1 && item.iteration, item.state, reason].filter(Boolean).map(esc).join(" · "),
-    title: item.title, href: `#pbi/${item.id}`, line, lineClass, primary: pbiPrimary(item, status === "TODO" ? "primary" : "") }) };
+    title: item.title, href: `#pbi/${item.id}`, line, lineClass, extra: noteLine("pbi", item.id) + lateLine,
+    primary: late ? updateStatus : pbiPrimary(item, status === "TODO" ? "primary" : "") }) };
 }
 
 // Rows go by status (to do, in progress, waiting, done), then by last activity, most recent first.

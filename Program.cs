@@ -4,7 +4,7 @@
 // Azure DevOps, Daily.cs builds a day's activity, VaultStore.cs and VaultQuestions.cs read and write the vault,
 // Claude.cs opens the sessions.
 //
-//   dotnet run                     then open http://localhost:5099 (polls every 10 minutes; ?refresh=60 sets it in seconds)
+//   dotnet run                     then open http://localhost:5099 (the server reads Azure DevOps again every minute while it is open)
 //
 // The organization, project, team, vault and PAT variable come from dashboard.settings.json next to this file (see
 // dashboard.settings.example.json); the PAT itself is read from that environment variable and only put in the
@@ -56,11 +56,12 @@ app.UseStaticFiles(new StaticFileOptions
 });
 var page = Path.Combine(web, "index.html");
 app.MapGet("/", () => Results.Content(File.ReadAllText(page), "text/html; charset=utf-8"));
-app.MapGet("/api/today", async () =>
+// The data of the Today view: the last reading when it is under a minute old, a new one otherwise or with ?refresh=1.
+app.MapGet("/api/today", async (HttpRequest request) =>
 {
     try
     {
-        return Results.Content((await TodayAsync()).ToJsonString(), "application/json");
+        return Results.Content(await Live.TodayAsync(request.Query["refresh"] == "1"), "application/json");
     }
     catch (Exception exception)
     {
@@ -165,6 +166,28 @@ app.MapPost("/api/sessions/{kind}/{id:int}", async (HttpRequest request, string 
     }
 });
 
+// Live updates (server-sent events): one message each time the server has read Azure DevOps and the vault again,
+// every minute while a page listens, with what changed since the last time.
+app.MapGet("/api/events", async (HttpContext context) =>
+{
+    context.Response.Headers.ContentType = "text/event-stream";
+    context.Response.Headers.CacheControl = "no-cache";
+    try
+    {
+        await foreach (var message in Live.ListenAsync(context.RequestAborted))
+        {
+            await context.Response.WriteAsync($"data: {message}\n\n");
+            await context.Response.Body.FlushAsync();
+        }
+    }
+    catch (OperationCanceledException) { }
+});
+// The notifications of the last seven days and the time up to which they were read; POST .../read marks them read.
+app.MapGet("/api/notifications", () => Results.Content(Live.Notifications(DateOnly.FromDateTime(DateTime.Today)).ToJsonString(), "application/json"));
+app.MapPost("/api/notifications/read", (HttpRequest request) =>
+    request.Headers.Origin != Url || request.Headers["X-Dashboard"] != "1" ? Results.StatusCode(403)
+        : Results.Content(new JsonObject { ["readUntil"] = Live.MarkRead(DateTimeOffset.Now) }.ToJsonString(), "application/json"));
+
 // The words of ?q= looked for in Azure DevOps and in the vault; ?closed=1 also looks into what is closed in Azure DevOps.
 app.MapGet("/api/search", async (HttpRequest request) =>
 {
@@ -234,6 +257,10 @@ app.MapPost("/api/questions/{action}", async (HttpRequest request, string action
         return Results.Content(new JsonObject { ["detail"] = exception.Message }.ToJsonString(), "application/json", statusCode: 400);
     }
 });
+
+// The notifications live next to the application, not in the vault: they only serve this page.
+Live.Folder = Path.Combine(home, "notifications");
+_ = Live.RunAsync(app.Lifetime.ApplicationStopping);
 
 Console.WriteLine($"Dashboard on {Url} (Ctrl+C to stop)");
 if (standalone)

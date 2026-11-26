@@ -95,6 +95,7 @@ public static class Prompts
 
     public static readonly Dictionary<string, string> StepTasks = new()
     {
+        ["00-status"] = "bring its status up to date: read where the PBI stands in Azure DevOps (state, pull requests, votes, open threads, last comments) and in its working files, then rewrite the frontmatter (step, next, blockedBy) and the one to three lines of the status. Change nothing else.",
         ["01-summary"] = "sum up what the PBI asks: goal, acceptance criteria, scope and what is out of scope.",
         ["02-analysis"] = "analyze what has to change and how: code areas, contract, options with their trade-offs, and the plan. Do not write code.",
         ["03-job-done"] = "carry out the plan of 02-analysis.md: tell me what you are about to change and wait for my approval before writing code, then record the work done.",

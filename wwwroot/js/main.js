@@ -4,6 +4,7 @@ import { hooks, shared } from "./state.js";
 import { lang, setLang, t } from "./texts.js";
 import { cap, esc } from "./util.js";
 import { loadDaily, updateDailyTab } from "./views/daily.js";
+import { connectLive, drawNotifications, isLive, liveHtml, loadNotifications, notificationClick } from "./views/notifications.js";
 import { renderPbi } from "./views/pbi.js";
 import { renderPr } from "./views/pr.js";
 import { closeQuestionForm, loadQuestions, questionClick, renderQuestions, updateQuestionsTab } from "./views/questions.js";
@@ -50,12 +51,15 @@ function translatePage() {
   updateReviewPlaceholder();
   updateDailyTab();
   updateQuestionsTab();
+  drawNotifications();
   updateTabIcon();
   document.getElementById("today").textContent = cap(new Date().toLocaleDateString(t("locale"), { weekday: "long", day: "numeric", month: "long" }));
   document.getElementById("lang").value = lang;
 }
 
-async function load() {
+// Draws the page from the data of the server: its last reading of Azure DevOps and the vault (it reads them again
+// every minute while the page listens), or a new reading with `refresh`.
+async function load(refresh = false) {
   if (shared.loading) return;
   shared.loading = true;
   loadQuestions();
@@ -64,7 +68,7 @@ async function load() {
   document.getElementById("updated").innerHTML = `<span class="spinner"></span> ${esc(t("updating"))}`;
   const error = document.getElementById("error");
   try {
-    const response = await fetch("/api/today");
+    const response = await fetch(refresh ? "/api/today?refresh=1" : "/api/today");
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || response.statusText);
     shared.lastData = data;
@@ -86,8 +90,9 @@ async function load() {
 function tick() {
   const updated = document.getElementById("updated");
   const at = updated.dataset.at ? new Date(updated.dataset.at).toLocaleTimeString(t("locale"), { hour: "2-digit", minute: "2-digit" }) : "-";
-  if (!shared.loading) updated.textContent = t("updated")(at);
-  if (!shared.loading && Date.now() >= nextRefresh) load();
+  if (!shared.loading) updated.innerHTML = liveHtml() ?? esc(t("updated")(at));
+  // The server pushes the changes; the page only asks on its own while it cannot listen.
+  if (!shared.loading && Date.now() >= nextRefresh && !isLive()) load();
 }
 
 document.getElementById("lang").onchange = event => {
@@ -102,7 +107,7 @@ document.getElementById("refresh").onclick = () => {
   if (shared.activeView === "daily") return loadDaily(true);
   // On the Search view, the search shown runs again too.
   if (shared.activeView === "search") rerunSearch();
-  load();
+  load(true);
 };
 
 // The views share the page: Today, the daily (#daily), the questions (#questions), a search (#search/<words>), one
@@ -148,11 +153,15 @@ document.addEventListener("click", e => {
   if (e.target.closest("[data-desc-toggle]")) { shared.descOpen = !shared.descOpen; renderPbi(); renderPr(); }
   questionClick(e);
   searchClick(e);
+  notificationClick(e);
 });
 
 // The views call these without importing this file.
-Object.assign(hooks, { load, render, renderPbi });
+// A view asks for a load after it changed something (a session started): a new reading, not the last one.
+Object.assign(hooks, { load: () => load(true), render, renderPbi });
 translatePage();
 load();
+loadNotifications();
+connectLive(() => load());
 route();
 setInterval(tick, 1000);

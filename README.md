@@ -23,6 +23,7 @@ for a PBI (see "What the page shows").
 | `Daily.cs` | What I did on a day, for the daily tab, and its AI summary. |
 | `VaultStore.cs` | The vault: reports, PBI working files, and the record of the Claude sessions. |
 | `Search.cs` | The search in Azure DevOps and in the vault (see Search). |
+| `Live.cs` | The live updates: the reading every minute, what changed, the notifications (see Live updates). |
 | `VaultQuestions.cs` | The questions of the vault, read and written (see Questions). |
 | `Claude.cs` | The Claude sessions: the terminal tab that runs one and its prompts. |
 | `Settings.cs` | Reads `dashboard.settings.json`. |
@@ -68,8 +69,8 @@ dotnet run
 
 Run it in this folder. Then open http://localhost:5099. The first start compiles the program, which takes a few seconds. Stop it with Ctrl+C.
 
-The page refreshes every 10 minutes. Use the refresh button to refresh at once, or `?refresh=<seconds>` to change the
-interval (for example http://localhost:5099/?refresh=120).
+The server reads Azure DevOps again every minute while the page is open (see Live updates). Use the refresh button to read at once; `?refresh=<seconds>` sets the
+interval the page falls back to when it cannot listen to the server (for example http://localhost:5099/?refresh=120).
 
 ### As an executable
 
@@ -113,7 +114,7 @@ The browser tab shows a checklist icon; when rows are to do, it gets an orange b
 title starts with it ("(3) Today"), so the tab tells whether something waits without opening it.
 
 The header shows the date and how many rows are **to do** (orange), **in progress** (grey), **waiting** (blue) and
-**done** (green); hovering a counter explains its status. The page has six views, kept in the address so that a
+**done** (green); hovering a counter explains its status. The page has six views (and a notifications panel, see Live updates), kept in the address so that a
 reload and the browser's back button work:
 
 | View | Address | Content |
@@ -281,6 +282,46 @@ or checks itself. A file written by the dashboard names `dashboard` as its sessi
 has no folder in the vault also gives it its hub note (`pbi-<id>.md`) and its line in `PBIs/PBIs.md`. An open form
 keeps what is typed in it, its focus and its cursor when the page refreshes. A question file that cannot be read is
 left out of the list, with the reason on the server console.
+
+### Live updates
+
+The page no longer asks for its data every ten minutes: the server reads Azure DevOps and the vault again **every
+minute** while a page is open, and pushes the result. The header says so: **Live · ADO checked 40 s ago**, or in
+red that the connection to the server is lost (the browser then reconnects on its own, and the page asks on its
+own meanwhile, every ten minutes or `?refresh=<seconds>`). The refresh button still forces a reading at once.
+
+Each reading is compared with the one before, and what differs becomes a **notification**:
+
+| About | Notification |
+| :---- | :----------- |
+| One of my PBIs | a new one, one that left my open ones, a change of state or of sprint, or "changed in Azure DevOps" when only its change date moved (a comment, the description, a link) |
+| A pull request of mine | a vote of a reviewer, threads opened or resolved, the CI succeeding, failing or expiring, merged or abandoned |
+| A pull request I review | a new one, new commits or an answer of its author, the same votes, threads and CI, and its closing |
+| The vault | a working file or a report written (by the `updated` of its frontmatter), a question created, answered, or changing state |
+
+My own votes and my own pushes are not notified. The bell of the header carries the number of unread ones and opens
+a panel: the notifications of the last seven days, the newest first, by day, with a filter by source (Azure DevOps,
+Vault) and **Mark all as read**. One that leads somewhere opens the page of its PBI or pull request. A banner under
+the header announces the ones that just arrived, and in the Today view a row whose PBI or pull request has an
+unread notification gets an accent edge and a line, **Updated 10:42** with what changed.
+
+A PBI row also says **Vault is late** when the PBI changed state in Azure DevOps after its `00-status.md` was
+written; its main button becomes **Update the status**, which opens a Claude session that rewrites the status from
+what Azure DevOps and the working files say.
+
+Notifications are not in the vault, since they only serve this page: they are in a `notifications` folder next to
+the application (next to the executable for a published one, in this repository otherwise, ignored by git).
+
+| File | Content |
+| :--- | :------ |
+| `<yyyy-mm-dd>.jsonl` | the notifications of a day, one JSON object per line, appended as they come; removed after seven days |
+| `read.json` | the time up to which the notifications were read |
+| `snapshot.json` | what the last reading saw, so that what changed while the application was stopped is notified at the next start |
+
+The server sends its messages as server-sent events (`GET /api/events`): no library on either side, and the
+browser reconnects by itself. `GET /api/today` answers the last reading when it is under a minute old, a new one
+otherwise or with `?refresh=1`; `GET /api/notifications` gives the seven days and `POST /api/notifications/read`
+marks them read. Nothing is read from Azure DevOps while no page listens.
 
 ### Search
 
@@ -460,6 +501,7 @@ another module uses:
 | `claude.js` | the buttons that open a Claude session, and the call that opens it |
 | `reader.js` | the dialog that reads a file of the vault, and the links that open it |
 | `views/parts.js` | pieces the PBI and pull request pages share: the panel of a file, a comment thread, the way back |
+| `views/notifications.js` | the live updates: the connection to the server, the bell and its panel, the banner |
 | `views/today.js`, `daily.js`, `questions.js`, `search.js`, `pr.js` | one view each: what it draws and what its own controls do |
 | `views/pbi.js` | the page of a PBI, whose Questions tab comes from `questions.js` |
 | `main.js` | the start: loading and refreshing the data, the address (`route`), the order in which the views are drawn, the clicks |
@@ -481,7 +523,8 @@ passages): what is read from a question
 file (frontmatter, sections, answers), which files count as questions, and what the forms write (a new question
 with its number and its lines in the indexes, a change of state, an answer placed before the notes), plus the
 paths and texts it refuses. Each test works in an empty vault under the temporary folder, never in the real one.
-The rest of the server (Azure DevOps, the daily, the sessions) has no test.
+`Live.cs` is tested for what it notifies between two readings and for the notifications it keeps and removes. The
+rest of the server (Azure DevOps, the daily, the sessions) has no test.
 
 ```powershell
 node --test tests/js/
