@@ -28,33 +28,57 @@ export async function loadNotifications() {
   try {
     const response = await fetch("/api/notifications");
     if (!response.ok) return;
-    ({ readUntil, notifications } = await response.json());
+    const data = await response.json();
+    readUntil = data.readUntil;
+    addNotifications(data.notifications);
     drawNotifications();
   } catch { }
 }
 
-// Listens to the server. `reload` draws the page again from the data the server just read.
+// The notifications come from the list of the server and from its messages, sometimes both: each one is kept once
+// (by its id), the newest first.
+function addNotifications(list) {
+  const known = new Set(notifications.map(note => note.id));
+  const added = list.filter(note => !known.has(note.id));
+  notifications = [...added, ...notifications].sort((a, b) => new Date(b.at) - new Date(a.at));
+  return added;
+}
+
+// Listens to the server while the tab shows: a hidden tab stops listening, so that the server stops reading Azure
+// DevOps when nobody looks, and so that many tabs do not each hold a connection (a browser allows six to one
+// host). `reload` draws the page again from the data the server just read.
 export function connectLive(reload) {
   if (!window.EventSource) return;
-  const events = new EventSource("/api/events");
-  events.onopen = () => {
-    // Back after a loss: what happened meanwhile is on the server.
-    if (live.lostAt) { loadNotifications(); reload(); }
-    Object.assign(live, { connected: true, lostAt: null });
+  let events = null;
+  const listen = () => {
+    events = new EventSource("/api/events");
+    events.onopen = () => {
+      // Back after a loss or after being hidden: what happened meanwhile is on the server.
+      if (live.lostAt || live.wasHidden) { loadNotifications(); reload(); }
+      Object.assign(live, { connected: true, lostAt: null, wasHidden: false });
+    };
+    events.onerror = () => Object.assign(live, { connected: false, lostAt: live.lostAt ?? new Date() });
+    events.onmessage = event => received(JSON.parse(event.data), reload);
   };
-  events.onerror = () => Object.assign(live, { connected: false, lostAt: live.lostAt ?? new Date() });
-  events.onmessage = event => {
-    const message = JSON.parse(event.data);
-    live.failed = message.type === "error";
-    if (message.checkedAt) live.checkedAt = message.checkedAt;
-    if (message.type !== "update") return;
-    if (message.notifications.length) {
-      notifications = [...message.notifications].reverse().concat(notifications);
-      banner = { count: new Set(message.notifications.map(note => note.pr ? `pr${note.pr}` : note.pbi ? `pbi${note.pbi}` : note.file)).size, at: message.checkedAt };
-      drawNotifications();
-    }
-    if (message.changed) reload();
-  };
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) return listen();
+    events.close();
+    Object.assign(live, { connected: false, lostAt: null, wasHidden: true });
+  });
+  if (document.hidden) live.wasHidden = true;
+  else listen();
+}
+
+function received(message, reload) {
+  live.failed = message.type === "error";
+  if (message.checkedAt) live.checkedAt = message.checkedAt;
+  if (message.type !== "update") return;
+  const added = addNotifications(message.notifications);
+  if (added.length) {
+    banner = { count: new Set(added.map(note => note.pr ? `pr${note.pr}` : note.pbi ? `pbi${note.pbi}` : note.file)).size, at: message.checkedAt };
+    drawNotifications();
+  }
+  if (message.changed) reload();
 }
 
 // Whether the server pushes the changes: the page then has no need to ask on its own.
@@ -94,6 +118,8 @@ export function drawNotifications() {
   const panel = document.getElementById("notificationsPanel");
   panel.hidden = !panelOpen;
   if (!panelOpen) return;
+  // Under the header, whose controls (the bell itself, the refresh, the language) stay within reach.
+  panel.style.top = `${Math.max(0, document.querySelector("header").getBoundingClientRect().bottom)}px`;
   const chip = (value, label) => `<button data-note-source="${value}" aria-pressed="${value === shownSource}" class="${value === shownSource ? "on" : ""}">${
     esc(label)} · ${notifications.filter(note => value === "all" || note.source === value).length}</button>`;
   const shown = notifications.filter(note => shownSource === "all" || note.source === shownSource);
@@ -140,6 +166,13 @@ export function notificationClick(e) {
   else if (pick("note-read")) return markRead();
   // A notification that leads somewhere closes the panel behind it.
   else if (e.target.closest("#notificationsPanel a")) panelOpen = false;
+  // A click anywhere else closes the panel, like Escape.
+  else if (panelOpen && !e.target.closest("#notificationsPanel")) panelOpen = false;
   else return;
   drawNotifications();
 }
+document.addEventListener("keydown", event => {
+  if (event.key !== "Escape" || !panelOpen) return;
+  panelOpen = false;
+  drawNotifications();
+});

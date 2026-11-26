@@ -131,7 +131,9 @@ public static class Live
         {
             var votes = new JsonObject();
             foreach (var reviewer in pr["reviewers"]?.AsArray() ?? [])
-                if ((bool?)reviewer!["isMe"] != true && (string?)reviewer["name"] is { } name) votes[name] = (int?)reviewer["vote"];
+                // By the reviewer's id: two reviewers can share the first name the page shows.
+                if ((bool?)reviewer!["isMe"] != true && (string?)reviewer["name"] is { } name)
+                    votes[(string?)reviewer["id"] ?? name] = new JsonObject { ["name"] = name, ["vote"] = (int?)reviewer["vote"] };
             pullRequests[$"{pr["id"]}"] = new JsonObject
             {
                 ["title"] = (string?)pr["title"], ["status"] = (string?)pr["status"], ["mine"] = (bool?)pr["isMine"] ?? false, ["pbi"] = pbi,
@@ -169,19 +171,21 @@ public static class Live
         return new JsonObject { ["items"] = items, ["pullRequests"] = pullRequests, ["files"] = files, ["questions"] = asked };
     }
 
-    // The notifications for what differs between two snapshots, each {at, source, kind, pbi, pr, title, ...}: the
-    // page writes the sentence from the kind and its values, in its language.
+    // The notifications for what differs between two snapshots, each {id, at, source, kind, pbi, pr, title, ...}: the
+    // page writes the sentence from the kind and its values, in its language, and knows by the id the ones it has.
     public static List<JsonObject> Changes(JsonObject before, JsonObject after, DateTimeOffset at)
     {
         var changes = new List<JsonObject>();
         JsonObject Notify(string source, string kind, int? pbi, int? pr, string? title)
         {
-            var change = new JsonObject { ["at"] = at.ToString("O"), ["source"] = source, ["kind"] = kind, ["pbi"] = pbi, ["pr"] = pr, ["title"] = title };
+            var change = new JsonObject { ["id"] = Guid.NewGuid().ToString("N"), ["at"] = at.ToString("O"), ["source"] = source, ["kind"] = kind, ["pbi"] = pbi, ["pr"] = pr, ["title"] = title };
             changes.Add(change);
             return change;
         }
         static JsonObject Part(JsonObject snapshot, string name) => snapshot[name]?.AsObject() ?? [];
         static string? Text(JsonNode? node, string name) => (string?)node?[name];
+        // A snapshot written by an earlier version holds the vote alone, under the first name.
+        static int? VoteOf(JsonNode? entry) => entry is JsonObject ? (int?)entry["vote"] : (int?)entry;
 
         // My PBIs: one that appears or leaves my open ones, its state, its sprint, or any other change.
         var (oldItems, newItems) = (Part(before, "items"), Part(after, "items"));
@@ -213,15 +217,17 @@ public static class Live
                 continue;
             }
             if (Text(old, "status") != Text(pr, "status")) Notify("ado", "prStatus", pbi, id, title).With("to", Text(pr, "status"));
-            foreach (var (who, vote) in pr["votes"]?.AsObject() ?? [])
-                if ((int?)vote is { } value && value != 0 && (int?)old["votes"]?[who] != value) Notify("ado", "vote", pbi, id, title).With("who", who).With("vote", value);
+            foreach (var (reviewer, vote) in pr["votes"]?.AsObject() ?? [])
+                if ((int?)vote?["vote"] is { } value && value != 0 && VoteOf(old["votes"]?[reviewer]) != value)
+                    Notify("ado", "vote", pbi, id, title).With("who", (string?)vote["name"]).With("vote", value);
             if ((int?)old["open"] is { } openBefore && (int?)pr["open"] is { } open && open != openBefore)
                 Notify("ado", open > openBefore ? "threadsOpened" : "threadsResolved", pbi, id, title).With("count", Math.Abs(open - openBefore)).With("open", open);
             if (Text(pr, "ci") is { } ci and not "running" && Text(old, "ci") != ci) Notify("ado", "ci", pbi, id, title).With("to", ci);
             if (!mine && Text(pr, "lastPush") is { } push && Text(old, "lastPush") != push) Notify("ado", "push", pbi, id, title);
             if (!mine && Text(pr, "authorLastComment") is { } reply && Text(old, "authorLastComment") != reply) Notify("ado", "authorReply", pbi, id, title);
         }
-        // A pull request I reviewed that is no longer listed was closed: the list only holds the active ones.
+        // A pull request I reviewed that is no longer listed: closed (the list only holds the active ones), or I am no
+        // longer one of its reviewers.
         foreach (var (key, old) in oldPrs)
             if (!newPrs.ContainsKey(key) && (bool?)old!["mine"] != true && Text(old, "status") == "active")
                 Notify("ado", "prClosed", (int?)old["pbi"], int.Parse(key), Text(old, "title"));

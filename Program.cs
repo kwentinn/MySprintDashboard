@@ -172,9 +172,11 @@ app.MapGet("/api/events", async (HttpContext context) =>
 {
     context.Response.Headers.ContentType = "text/event-stream";
     context.Response.Headers.CacheControl = "no-cache";
+    // The stream ends when the page leaves or when the application stops: an open one would hold the shutdown.
+    using var ending = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted, app.Lifetime.ApplicationStopping);
     try
     {
-        await foreach (var message in Live.ListenAsync(context.RequestAborted))
+        await foreach (var message in Live.ListenAsync(ending.Token))
         {
             await context.Response.WriteAsync($"data: {message}\n\n");
             await context.Response.Body.FlushAsync();

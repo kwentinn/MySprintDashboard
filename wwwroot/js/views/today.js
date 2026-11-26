@@ -38,17 +38,19 @@ function itemRow(item) {
     : state?.fields.next ? ["", `<span class="muted">${esc(t("nextAction"))}</span> ${esc(state.fields.next)}`]
     : ["muted", esc(t("changed")(ago(activity)))];
   // The status of the vault is late when the PBI changed state in Azure DevOps after the status was written: the
-  // row says so, and its main action becomes to have Claude write the status again.
+  // row says so, and offers to have Claude write the status again.
   const lastState = (item.history ?? []).filter(event => event.type === "state").sort((a, b) => new Date(a.date) - new Date(b.date)).pop();
-  const late = state && lastState && new Date(lastState.date) > new Date(state.fields.updated || state.file.updated);
+  const written = state && (state.fields.updated || state.file.updated);
+  // A date without a time is the whole day: the status is late only for a change after that day.
+  const late = written && lastState && new Date(lastState.date) > new Date(written.includes("T") ? written : `${written}T23:59:59`);
   const lateLine = late ? `<div class="row-line">${pill("TODO", t("vaultLate"), "small")} ${esc(t("vaultLateLine")(lastState.to))}</div>` : "";
-  const updateStatus = `<button class="primary" data-claude="step/${item.id}" data-query="&amp;step=00-status" data-label="claudeStatus">${esc(t("claudeStatus"))}</button>`;
+  const updateStatus = `<button data-claude="step/${item.id}" data-query="&amp;step=00-status" data-label="claudeStatus">${esc(t("claudeStatus"))}</button>`;
   return { status, activity, html: rowHtml({
     status, pillText: t("statusNames")[status], order: orderPill(item.backlogOrder, item.iteration),
     // The sprint only when the filter shows several.
     meta: [`#${item.id}`, selectedSprints.size !== 1 && item.iteration, item.state, reason].filter(Boolean).map(esc).join(" · "),
     title: item.title, href: `#pbi/${item.id}`, line, lineClass, extra: noteLine("pbi", item.id) + lateLine,
-    primary: late ? updateStatus : pbiPrimary(item, status === "TODO" ? "primary" : "") }) };
+    primary: (late ? updateStatus : "") + (pbiPrimary(item, status === "TODO" ? "primary" : "") || "") }) };
 }
 
 // Rows go by status (to do, in progress, waiting, done), then by last activity, most recent first.

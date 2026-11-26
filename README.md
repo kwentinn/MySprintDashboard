@@ -321,7 +321,7 @@ the application (next to the executable for a published one, in this repository 
 The server sends its messages as server-sent events (`GET /api/events`): no library on either side, and the
 browser reconnects by itself. `GET /api/today` answers the last reading when it is under a minute old, a new one
 otherwise or with `?refresh=1`; `GET /api/notifications` gives the seven days and `POST /api/notifications/read`
-marks them read. Nothing is read from Azure DevOps while no page listens.
+marks them read. Nothing is read from Azure DevOps while no page listens, and a hidden tab stops listening until it shows again: the server rests when nobody looks, and many tabs do not each hold a connection.
 
 ### Search
 

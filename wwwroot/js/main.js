@@ -14,11 +14,12 @@ import { renderToday, toggleSprint, updateReviewPlaceholder } from "./views/toda
 // The page: it loads the data, keeps it fresh, reads the address and draws the views (views/*.js).
 
 const refreshSeconds = Number(new URLSearchParams(location.search).get("refresh")) || 600;
-let nextRefresh = 0;
+let nextRefresh = 0, lastRender = 0;
 
 // Draws the rows of the last data; called after each refresh and when the language changes.
 function render() {
   if (!shared.lastData) return;
+  lastRender = Date.now();
   registerDocuments();
   todoCount = renderToday();
   updateTabIcon();
@@ -91,8 +92,11 @@ function tick() {
   const updated = document.getElementById("updated");
   const at = updated.dataset.at ? new Date(updated.dataset.at).toLocaleTimeString(t("locale"), { hour: "2-digit", minute: "2-digit" }) : "-";
   if (!shared.loading) updated.innerHTML = liveHtml() ?? esc(t("updated")(at));
+  if (document.hidden) return;
   // The server pushes the changes; the page only asks on its own while it cannot listen.
   if (!shared.loading && Date.now() >= nextRefresh && !isLive()) load();
+  // Without a change the data stays, but the ages it shows ("3 h ago") move on: drawn again every five minutes.
+  else if (!shared.loading && Date.now() - lastRender > 5 * 60 * 1000) render();
 }
 
 document.getElementById("lang").onchange = event => {

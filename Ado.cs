@@ -309,7 +309,8 @@ public static class Ado
             .Where(reviewer => (bool?)reviewer!["isContainer"] != true)
             .Select(reviewer => new JsonObject
             {
-                ["name"] = FirstName((string?)reviewer!["displayName"]),
+                ["id"] = (string?)reviewer!["id"],
+                ["name"] = FirstName((string?)reviewer["displayName"]),
                 ["vote"] = (int)reviewer["vote"]!,
                 ["isRequired"] = (bool?)reviewer["isRequired"] ?? false,
                 ["isMe"] = (string?)reviewer["id"] == MyId,

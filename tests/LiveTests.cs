@@ -100,6 +100,36 @@ public sealed class LiveTests : IDisposable
     }
 
     [Fact]
+    public void Two_reviewers_with_the_same_first_name_keep_their_own_vote()
+    {
+        static JsonNode Twins(int first, int second) => new JsonArray(
+            new JsonObject { ["id"] = "a1", ["name"] = "Bob", ["vote"] = first, ["isMe"] = false },
+            new JsonObject { ["id"] = "b2", ["name"] = "Bob", ["vote"] = second, ["isMe"] = false });
+        var before = Live.Snapshot(Today(today => MyPr(today)["reviewers"] = Twins(0, 10)), []);
+        var after = Live.Snapshot(Today(today => MyPr(today)["reviewers"] = Twins(5, 10)), []);
+
+        Assert.Equal(["source=ado kind=vote pbi=1201 pr=4215 who=Bob vote=5"], Live.Changes(before, after, At).Select(Line));
+    }
+
+    [Fact]
+    public void A_snapshot_of_an_earlier_version_still_compares_its_votes()
+    {
+        var before = Live.Snapshot(Today(), []);
+        before["pullRequests"]!["4215"]!["votes"] = new JsonObject { ["Bob"] = 10 };
+        var after = Live.Snapshot(Today(today => MyPr(today)["reviewers"]![0]!["vote"] = 10), []);
+
+        Assert.Empty(Live.Changes(before, after, At));
+    }
+
+    [Fact]
+    public void Each_notification_has_its_own_id()
+    {
+        var changes = Changes(today => { Item(today)["state"] = "Done"; MyPr(today)["openThreads"] = 3; });
+
+        Assert.Equal(2, changes.Select(change => (string?)change["id"]).Where(id => id?.Length == 32).Distinct().Count());
+    }
+
+    [Fact]
     public void A_pull_request_to_review_tells_what_its_author_did()
     {
         Assert.Equal(["source=ado kind=push pbi=1187 pr=4190"], Changes(today => Review(today)["lastPush"] = "2026-11-26T09:00:00Z").Select(Line));
