@@ -183,11 +183,11 @@ button.dashed { border-style: dashed; border-color: var(--wip-dot); }
 .note-bar .sprints button { height: 34px; padding: 0 12px; font-size: 13px; }
 .note-list { flex: 1; overflow-y: auto; }
 .note-day { padding: 14px 18px 6px; }
-.note { display: flex; gap: 12px; padding: 12px 18px; border-top: 1px solid var(--line); }
-a.note:hover { text-decoration: none; background: var(--bg); }
-.note i { flex: none; width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; }
-.note.unread { background: var(--accent-bg); } .note.unread i { background: var(--accent); }
-.note > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+#notificationsPanel .note { display: flex; gap: 12px; padding: 12px 18px; border-top: 1px solid var(--line); }
+#notificationsPanel a.note:hover { text-decoration: none; background: var(--bg); }
+#notificationsPanel .note i { flex: none; width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; }
+#notificationsPanel .note.unread { background: var(--accent-bg); } #notificationsPanel .note.unread i { background: var(--accent); }
+#notificationsPanel .note > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .note-meta { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 .note-meta b.ado { color: var(--accent-text); } .note-meta b.vault { color: var(--ok); }
 .note-text { font-weight: 600; }

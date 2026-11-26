@@ -3,15 +3,10 @@
 A local web page that turns Azure DevOps into a to-do list for the day: the pull requests waiting for my review,
 and my open PBIs and bugs with their pull requests. Handy for the daily meeting.
 
-The screenshots below use fictional data and show the layout before the revamp (cards in a grid, details unfolded
-in the card): they are to be retaken. The page now has one row per item, and a page of its own for a pull request and
-for a PBI (see "What the page shows").
+The screenshots use fictional data (organization contoso, colleagues Alice, Bob, Carol, Dan and Eve): see Screenshots
+to retake them.
 
-![The Today tab before the revamp](docs/today.png)
-
-<p align="center"><img src="docs/pbi-card.png" alt="A PBI card before the revamp" width="460"></p>
-
-![The daily tab before the revamp](docs/daily.png)
+![The Today view: one row per pull request to review and per PBI](docs/today.png)
 
 ## Files
 
@@ -27,6 +22,7 @@ for a PBI (see "What the page shows").
 | `VaultQuestions.cs` | The questions of the vault, read and written (see Questions). |
 | `Claude.cs` | The Claude sessions: the terminal tab that runs one and its prompts. |
 | `Settings.cs` | Reads `dashboard.settings.json`. |
+| `docs/` | The screenshots of this README, and `demo/`: the fictional data and the script that retake them (see Screenshots). |
 | `tests/` | The tests of the vault's questions, on a temporary folder (see Tests). |
 | `wwwroot/` | The page, plain HTML, CSS and JavaScript with no build step: `index.html` (the markup), `css/app.css` (the styles) and `js/` (the script, as modules: see The page's script). The server serves this folder and nothing else; the browser asks for each file again on every load, so you can edit them without restarting the server. |
 | `dashboard.settings.json` | The settings of this machine (not committed): copy `dashboard.settings.example.json` and fill it in (below). |
@@ -167,6 +163,8 @@ sprint, and the counters in the header follow what is shown.
 
 ### Daily tab
 
+![The daily view with its AI summary](docs/daily.png)
+
 The **Yesterday · daily** tab (named after the day on a Monday: "Friday · daily") lists what I did on the previous
 working day, to prepare the daily meeting. The arrows move one working day; the day is loaded when the tab opens and
 the refresh button reloads it (`GET /api/daily?day=yyyy-MM-dd`).
@@ -192,6 +190,8 @@ it is ("Alice's PR") and its linked work items with their order.
 
 ### Pull request page
 
+![A pull request page: its open threads](docs/pr.png)
+
 Opened from a code review row, or from the pull requests of a PBI. It works for the active pull requests where I am
 a reviewer and not the author, and for the pull requests linked to my open PBIs.
 
@@ -207,6 +207,8 @@ to four lines. Then the buttons that start or resume a Claude session on it, and
 | Threads analysis | `Reviews/<pr>-threads.md`, the same way; without one, **Analyze the threads with Claude** when threads are open. |
 
 ### PBI page
+
+![A PBI page: the next action, a tab per working file](docs/pbi.png)
 
 Opened from a PBI row. It works for my open Product Backlog Items and Bugs in the project (state not Done, Removed
 or Closed).
@@ -245,6 +247,8 @@ Revisions that change none of these (description, links, comments) are left out.
 read, its history is empty and the rest of the page still loads (the error goes to the server console).
 
 ### Questions
+
+![The questions waiting for an answer](docs/questions.png)
 
 A question to the PO or the team is one file of the vault, so that it can be followed whatever the channel it
 travels on (Azure DevOps, Teams, e-mail): `PBIs/pbi-<id>/questions/q<NN>-<slug>.md` for a PBI,
@@ -286,6 +290,8 @@ left out of the list, with the reason on the server console.
 
 ### Live updates
 
+![The notifications panel](docs/notifications.png)
+
 The page no longer asks for its data every ten minutes: the server reads Azure DevOps and the vault again **every
 five minutes** while a page is open, and pushes the result. The header says so: **Live · ADO checked 2 min ago**, or in
 red that the connection to the server is lost (the browser then reconnects on its own, and the page asks on its
@@ -325,6 +331,8 @@ otherwise or with `?refresh=1`; `GET /api/notifications` gives the seven days an
 marks them read. Nothing is read from Azure DevOps while no page listens, and a hidden tab stops listening until it shows again: the server rests when nobody looks, and many tabs do not each hold a connection.
 
 ### Search
+
+![A search in Azure DevOps and the vault](docs/search.png)
 
 The box of the header (the `/` key goes to it) looks for the words typed in Azure DevOps and in the vault. Every
 word must be found, whatever its case. A number alone opens what it names when it is mine: `#1201` the page of that
@@ -534,6 +542,21 @@ node --test tests/js/
 The page's script has tests for the functions that hold rules and need no page: what a pull request and a PBI ask
 of me (`prAction`, `itemAction`) and the reading of a file's frontmatter. They run with Node alone, no dependency;
 `package.json` is only there so that Node reads `wwwroot/js` as modules. The views themselves have no test.
+
+## Screenshots
+
+The images of `docs\` are taken from fictional data, never from a real project:
+
+```powershell
+.\docs\demo\make-screenshots.ps1                 # all of them
+.\docs\demo\make-screenshots.ps1 -Only today,pbi # some
+```
+
+The script copies `wwwroot` to a temporary folder, puts `docs\demo\demo-data.js` before the page's own script (it
+answers the page's `fetch` calls and its `EventSource` with made-up JSON, with times relative to now), serves the
+copy on localhost with `docs\demo\serve.mjs` and takes each view with Chrome headless, in English and with the
+light theme (the dark rules are removed from the copy). It needs Chrome and Node. A change of what a screen shows
+may need a change of the fictional data: it follows the shapes described in "How it works".
 
 ## How it works
 

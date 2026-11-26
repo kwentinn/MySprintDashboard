@@ -32,6 +32,8 @@ export async function loadNotifications() {
     readUntil = data.readUntil;
     addNotifications(data.notifications);
     drawNotifications();
+    // The rows of the Today view carry the unread ones: draw them again, whichever of the two answers came first.
+    hooks.render();
   } catch { }
 }
 
