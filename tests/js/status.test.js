@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 globalThis.location = { search: "?lang=en" };
 globalThis.navigator ??= { language: "en" };
 const { prAction, itemAction } = await import("../../wwwroot/js/status.js");
-const { frontmatter, ago, latest } = await import("../../wwwroot/js/util.js");
+const { frontmatter, ago, aged, esc, fullDate, latest } = await import("../../wwwroot/js/util.js");
 
 const reviewer = (vote, extra = {}) => ({ name: "Bob", vote, isMe: false, isRequired: true, ...extra });
 const me = vote => reviewer(vote, { name: "Me", isMe: true });
@@ -80,9 +80,25 @@ test("frontmatter: flat fields, comments after a spaced #, the body", () => {
   assert.deepEqual(frontmatter(undefined), { fields: {}, body: "" });
 });
 
+test("an age shows its date and time on hover, and stays HTML among escaped texts", () => {
+  const when = "2026-11-20T10:42:00+01:00";
+  const html = aged(when, age => `updated ${age} ago`);
+  assert.match(String(html), /^<span class="age" title="[^"]*2026[^"]*">updated \d+ d ago<\/span>$/);
+  // Mixed with texts that are escaped together, it is left as it is.
+  assert.equal(["a < b", html].map(esc).join(" · "), `a &lt; b · ${html}`);
+  assert.equal(aged(null), "");
+  // A date without a time is not given one.
+  assert.doesNotMatch(fullDate("2026-11-20"), /\d:\d\d/);
+  assert.match(fullDate(when), /\d:\d\d/);
+});
+
 test("ago and latest", () => {
   const hours = count => new Date(Date.now() - count * 36e5).toISOString();
-  assert.equal(ago(hours(0.5)), "< 1 h");
+  assert.equal(ago(hours(0.004)), "less than a minute");
+  assert.equal(ago(hours(1.5 / 60)), "1 minute");
+  assert.equal(ago(hours(0.5)), "30 minutes");
+  assert.equal(ago(hours(59.7 / 60)), "59 minutes");
+  assert.equal(ago(hours(1)), "1 h");
   assert.equal(ago(hours(5)), "5 h");
   assert.equal(ago(hours(72)), "3 d");
   assert.equal(ago(null), "");

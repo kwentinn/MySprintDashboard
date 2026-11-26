@@ -1,7 +1,7 @@
 import { docLink } from "../claude.js";
 import { hooks, shared } from "../state.js";
 import { t } from "../texts.js";
-import { ago, cap, esc, markdown, pill, shortDate, shortDateTime } from "../util.js";
+import { ago, cap, esc, fullDate, markdown, pill, shortDate, shortDateTime } from "../util.js";
 import { stepPanel } from "./parts.js";
 
 // Questions asked to the PO or the team: one file each in the vault (rule "Questions" of the workspace CLAUDE.md),
@@ -101,7 +101,7 @@ function questionCard(q, showPbi) {
     : `${toggle}${button("new", "qFollowUp", "link")}${setState(q.asked ? "waiting" : "draft", "qReopen")}`;
   const form = questionForm?.file === q.file && questionForm.kind !== "new";
   return `<article class="row pad question ${state}" data-qcard="${esc(q.file)}" data-vault="${esc(q.file)}">
-    <div class="row-meta">${pill(state === "waiting" ? "TODO" : state === "resolved" ? "OK" : "", [t("qStates")[state], state === "waiting" && ago(q.asked || q.updated), chase && t("qChase")].filter(Boolean).join(" · "))}<span>${meta}</span></div>
+    <div class="row-meta">${pill(state === "waiting" ? "TODO" : state === "resolved" ? "OK" : "", [t("qStates")[state], state === "waiting" && ago(q.asked || q.updated), chase && t("qChase")].filter(Boolean).join(" · "), "", state === "waiting" ? fullDate(q.asked || q.updated) : "")}<span>${meta}</span></div>
     <h3>${esc(q.title)}</h3>
     ${open && q.question ? `<div class="markdown">${markdown(q.question)}</div>` : ""}
     ${q.answers.map(answer => `<div class="answer"><div class="row-meta"><b>${esc(answer.author)}</b><span>${esc(when(answer.date))}</span>
@@ -166,7 +166,7 @@ export function renderQuestions() {
   const view = document.getElementById("questionsView"), kept = formValues(view);
   view.innerHTML = `<div class="head-row">
       <div><h2>${esc(t("qHeadline")(waiting.length))}</h2>
-        <div class="muted">${esc(cap([waiting.length && t("qOldest")(ago(waiting[0].asked || waiting[0].updated)), t("qDraftsToAsk")(inFilter("draft").length)].filter(Boolean).join(" · ")))}</div></div>
+        <div class="muted"${waiting.length ? ` title="${esc(fullDate(waiting[0].asked || waiting[0].updated))}"` : ""}>${esc(cap([waiting.length && t("qOldest")(ago(waiting[0].asked || waiting[0].updated)), t("qDraftsToAsk")(inFilter("draft").length)].filter(Boolean).join(" · ")))}</div></div>
       <button class="primary" data-qform="new">${esc(t("qNew"))}</button></div>
     <div class="sprints">${Object.keys(filters).map(key => `<button data-qfilter="${key}" aria-pressed="${key === questionFilter}" class="${key === questionFilter ? "on" : ""}">${
       esc(t("qFilters")[key])} · ${inFilter(key).length}</button>`).join("")}</div>

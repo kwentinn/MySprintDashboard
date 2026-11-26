@@ -1,6 +1,6 @@
 import { shared } from "../state.js";
 import { lang, t } from "../texts.js";
-import { ago, esc, frontmatter, markdown } from "../util.js";
+import { aged, esc, frontmatter, markdown } from "../util.js";
 
 // Pieces the pages of a PBI and of a pull request share.
 
@@ -9,7 +9,7 @@ export const plainText = text => String(text ?? "").replace(/[`*_>#\[\]]/g, "").
 export const conversationHtml = thread => `<div class="conversation">
     <div class="where">${thread.file ? `<code>${esc(thread.file)}${thread.line ? `:${thread.line}` : ""}</code>` : `<span>${esc(t("prLevelThread"))}</span>`}
       <a href="${esc(thread.url)}" target="_blank">${esc(t("openInAdo"))}</a></div>
-    ${thread.comments.map(comment => `<div class="comment"><b>${esc(comment.author)}</b> <span class="muted">· ${esc(t("since")(ago(comment.date)))}</span>
+    ${thread.comments.map(comment => `<div class="comment"><b>${esc(comment.author)}</b> <span class="muted">· ${aged(comment.date, t("since"))}</span>
       <div class="markdown">${markdown(comment.content ?? "")}</div></div>`).join("")}
   </div>`;
 
@@ -29,7 +29,7 @@ export function filePanel(report, { translate, action, missing }) {
         `<button data-doclang="${code}" aria-pressed="${code === shown}">${code.toUpperCase()}</button>`).join("")}</span>`
     : frenchOnly ? "" : translate;
   return `<section class="row panel">
-    <div class="panel-bar"><span>${[doc.file.split("/").pop(), t("updatedAgo")(ago(fields.updated || doc.updated)), sessions && t("writtenBySessions")(sessions),
+    <div class="panel-bar"><span>${[doc.file.split("/").pop(), aged(fields.updated || doc.updated, t("updatedAgo")), sessions && t("writtenBySessions")(sessions),
         !report.fr && !frenchOnly && t("englishOnly")].filter(Boolean).map(esc).join(" · ")}</span>
       <span class="row-actions">${language}${action || ""}</span></div>
     <div class="markdown" data-vault="${esc(doc.file)}">${markdown(body)}</div></section>`;

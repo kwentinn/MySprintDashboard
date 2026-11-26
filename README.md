@@ -114,7 +114,8 @@ The browser tab shows a checklist icon; when rows are to do, it gets an orange b
 title starts with it ("(3) Today"), so the tab tells whether something waits without opening it.
 
 The header shows the date and how many rows are **to do** (orange), **in progress** (grey), **waiting** (blue) and
-**done** (green); hovering a counter explains its status. The page has six views (and a notifications panel, see Live updates), kept in the address so that a
+**done** (green); hovering a counter explains its status. Everywhere an age shows ("2 minutes ago", "5 h ago",
+"3 d ago": minutes under an hour, hours under two days, then days), hovering it gives the date and time. The page has six views (and a notifications panel, see Live updates), kept in the address so that a
 reload and the browser's back button work:
 
 | View | Address | Content |

@@ -1,14 +1,22 @@
 import { lang, t } from "./texts.js";
 
-export const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+// HTML that is already safe: `esc` leaves it as it is, so that it can sit among texts that are escaped together.
+const safe = html => Object.assign(new String(html), { safe: true });
+export const esc = value => value?.safe ? String(value) : String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 export const cap = text => text.replace(/^./, c => c.toUpperCase());
+// How long ago, as the words that follow "... ago": minutes under an hour, hours under two days, then days.
 export const ago = iso => {
   if (!iso) return "";
-  const hours = (Date.now() - new Date(iso)) / 36e5;
-  return hours < 1 ? "< 1 h" : hours < 48 ? `${Math.round(hours)} h` : `${Math.round(hours / 24)} ${t("day")}`;
+  const minutes = (Date.now() - new Date(iso)) / 6e4;
+  return minutes < 60 ? t("minutes")(Math.floor(minutes)) : minutes < 48 * 60 ? `${Math.round(minutes / 60)} h` : `${Math.round(minutes / 1440)} ${t("day")}`;
 };
+// A date in full, with its time when it has one: what hovering an age shows.
+export const fullDate = iso => !iso ? "" : new Date(iso).toLocaleString(t("locale"), String(iso).includes("T") ? { dateStyle: "full", timeStyle: "short" } : { dateStyle: "full" });
+// An age in a sentence (`phrase` puts the age in its words, "2 minutes" in "2 minutes ago"), with the date and time
+// on hover. Safe HTML: it goes through `esc` unchanged.
+export const aged = (iso, phrase = age => age) => iso ? safe(`<span class="age" title="${esc(fullDate(iso))}">${esc(phrase(ago(iso)))}</span>`) : "";
 
-export const pill = (status, text, extra = "") => `<span class="pill ${status} ${extra}">${esc(text)}</span>`;
+export const pill = (status, text, extra = "", title = "") => `<span class="pill ${status} ${extra}"${title ? ` title="${esc(title)}"` : ""}>${esc(text)}</span>`;
 export const orderPill = (order, sprint) => order ? `<span class="order" title="${esc(t("backlogOrderTitle")(sprint ?? ""))}">${order}</span>` : "";
 
 export const shortDate = iso => new Date(iso).toLocaleDateString(t("locale"), { day: "2-digit", month: "2-digit" });

@@ -2,7 +2,7 @@ import { claudeButton, openClaude, pbiPrimary } from "../claude.js";
 import { hooks, shared } from "../state.js";
 import { itemAction, itemActivity, prAction, rank, signals } from "../status.js";
 import { t } from "../texts.js";
-import { ago, cap, esc, latest, orderPill, pill, statusOf } from "../util.js";
+import { aged, cap, esc, latest, orderPill, pill, statusOf } from "../util.js";
 import { noteLine } from "./notifications.js";
 
 // A row of the Today tab: the pill says what it asks of me, then what it is, one useful sentence and one main
@@ -23,7 +23,7 @@ function reviewRow(pr) {
   const readFirst = status === "OK" && pr.review;
   return { status, activity: latest(pr.lastActivity, pr.review?.updated), html: rowHtml({
     status, pillText: cap(hint),
-    meta: `PR ${pr.id} · ${esc(pr.repository)} · ${esc(pr.author)} · ${esc(t("since")(ago(pr.createdDate)))}`,
+    meta: `PR ${pr.id} · ${esc(pr.repository)} · ${esc(pr.author)} · ${aged(pr.createdDate, t("since"))}`,
     title: pr.title, href: `#pr/${pr.id}`, line: signals(pr), extra: noteLine("pr", pr.id),
     primary: readFirst ? `<a class="btn" href="#pr/${pr.id}/review">${esc(t("readMyReview"))}</a>`
       : claudeButton("review", pr.id, "claudeReview", "", status === "TODO" ? "primary" : "") }) };
@@ -36,7 +36,7 @@ function itemRow(item) {
   // The one sentence: what blocks, else the next action, else when it last moved.
   const [lineClass, line] = state?.fields.blockedBy ? ["bad", `${esc(t("blockedBy"))} ${esc(state.fields.blockedBy)}`]
     : state?.fields.next ? ["", `<span class="muted">${esc(t("nextAction"))}</span> ${esc(state.fields.next)}`]
-    : ["muted", esc(t("changed")(ago(activity)))];
+    : ["muted", aged(activity, t("changed"))];
   // The status of the vault is late when the PBI changed state in Azure DevOps after the status was written: the
   // row says so, and offers to have Claude write the status again.
   const lastState = (item.history ?? []).filter(event => event.type === "state").sort((a, b) => new Date(a.date) - new Date(b.date)).pop();

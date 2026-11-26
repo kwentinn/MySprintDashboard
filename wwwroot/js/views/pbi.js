@@ -2,7 +2,7 @@ import { claudeButton, docLink, implemented, pbiPrimary, resumeThreadsButton, th
 import { shared } from "../state.js";
 import { itemAction, itemActivity, prAction, signals, votesText } from "../status.js";
 import { t } from "../texts.js";
-import { ago, cap, esc, markdown, orderPill, pbiSteps, pill, safeHtml, shortDateTime, statusOf } from "../util.js";
+import { aged, cap, esc, markdown, orderPill, pbiSteps, pill, safeHtml, shortDateTime, statusOf } from "../util.js";
 import { backLink, conversationHtml, finishPage, pagePlaceholder, plainText, stepPanel } from "./parts.js";
 import { formValues, questions, questionsPanel, restoreForm, stateOf } from "./questions.js";
 
@@ -37,14 +37,14 @@ export function renderPbi() {
   view.innerHTML = `<div class="links">${backLink()}<a href="${esc(item.url)}" target="_blank" style="margin-left:auto">${esc(t("openInAdo"))}</a></div>
     <div class="pbi-head">
       <div class="row-meta">${orderPill(item.backlogOrder, item.iteration)}${pill(status, t("statusNames")[status])}
-        <span>${[`#${item.id}`, item.type, item.iteration, item.state, item.tags, t("lastActivity")(ago(itemActivity(item)))].filter(Boolean).map(esc).join(" · ")}</span></div>
+        <span>${[`#${item.id}`, item.type, item.iteration, item.state, item.tags, aged(itemActivity(item), t("lastActivity"))].filter(Boolean).map(esc).join(" · ")}</span></div>
       <h1>${esc(item.title)}</h1>
     </div>
     ${description ? `<div class="desc-block"><div class="label">${esc(t("description"))}</div>
       <div class="desc markdown ${shared.descOpen ? "open" : ""}">${safeHtml(description)}</div>
       <div><button class="link" data-desc-toggle aria-expanded="${shared.descOpen}">${esc(t(shared.descOpen ? "descLess" : "descMore"))}</button></div></div>` : ""}
     <section class="row banner"><div class="row-text">
-        ${state ? `<div class="label">${esc(t("nextHead")(ago(state.fields.updated || state.file.updated)))}</div>
+        ${state ? `<div class="label">${aged(state.fields.updated || state.file.updated, t("nextHead"))}</div>
           <div class="next">${esc(state.fields.next || firstLine)}</div>
           <div class="${state.fields.blockedBy ? "bad" : "muted"}">${state.fields.blockedBy ? `${esc(t("blockedBy"))} ${esc(state.fields.blockedBy)}` : esc(t("notBlocked"))}
             · ${docLink(`pbi:${item.id}:00-status`, t("readStatus"))}</div>`
@@ -63,7 +63,7 @@ function pullRequestsPanel(item) {
     const active = pr.status === "active";
     const resolved = (pr.totalThreads ?? 0) - (pr.openThreads ?? 0);
     return `<section class="row ${active ? "" : "dim"}"><div class="row-main"><div class="row-text">
-          <div class="row-meta">${pill(status, cap(hint))}<span>PR ${pr.id} · ${esc(pr.repository)}${active ? ` → ${esc(pr.targetBranch)} · ${esc(t("since")(ago(pr.createdDate)))}` : ""}</span></div>
+          <div class="row-meta">${pill(status, cap(hint))}<span>PR ${pr.id} · ${esc(pr.repository)}${active ? ` → ${esc(pr.targetBranch)} · ${aged(pr.createdDate, t("since"))}` : ""}</span></div>
           <h3><a href="#pr/${pr.id}">${esc(pr.title)}</a></h3>
           ${active ? `<div class="row-line">${signals(pr)}</div><div class="muted">${esc(t("votesLabel"))} ${votesText(pr)}</div>` : ""}</div>
         <div class="row-actions">${threadsButton(pr, "primary") || ""}${resumeThreadsButton(pr, "") || ""}<a class="btn" href="#pr/${pr.id}">${esc(t("details"))}</a></div></div></section>

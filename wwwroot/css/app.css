@@ -159,6 +159,8 @@ button.dashed { border-style: dashed; border-color: var(--wip-dot); }
 .empty-step p { max-width: 460px; }
 .timeline { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 10px 16px; padding: 20px 24px; color: var(--soft); }
 .timeline b { color: var(--text); }
+/* An age ("2 minutes ago"): its date and time show on hover. */
+.age { cursor: help; }
 /* Live updates: the state of the connection, the bell and its panel, the banner, the rows that just changed. */
 .live { display: inline-flex; align-items: center; gap: 7px; padding: 4px 12px; border-radius: 999px; background: var(--wip-bg); color: var(--wip); font-weight: 600; }
 .live i { width: 8px; height: 8px; border-radius: 50%; background: var(--wip-dot); }

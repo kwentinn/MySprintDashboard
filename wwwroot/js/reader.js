@@ -1,6 +1,6 @@
 import { shared } from "./state.js";
 import { t } from "./texts.js";
-import { ago, esc, frontmatter, localized, markdown } from "./util.js";
+import { ago, esc, frontmatter, fullDate, localized, markdown } from "./util.js";
 
 // Markdown files of the vault: reviews (Reviews/<pr>-review.md, <pr>-threads.md) and PBI working files
 // (PBIs/pbi-<id>/<step>.md), keyed "review:<pr>" / "threads:<pr>" / "pbi:<id>:<step>". Rendered with marked and
@@ -11,7 +11,8 @@ const documents = new Map();
 // and the sessions that wrote it.
 const docText = doc => {
   const { fields, body } = frontmatter(doc.markdown);
-  return (fields.session ? `*${t("writtenBy")(ago(fields.updated || doc.updated), fields.sessions || fields.session)}*\n\n` : "") + body;
+  const written = fields.updated || doc.updated;
+  return (fields.session ? `*<span title="${esc(fullDate(written))}">${t("writtenBy")(ago(written), fields.sessions || fields.session)}</span>*\n\n` : "") + body;
 };
 
 // The documents the dialog opens, in the page language.

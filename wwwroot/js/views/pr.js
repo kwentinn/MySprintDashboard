@@ -2,7 +2,7 @@ import { claudeButton, resumeReviewButton, resumeThreadsButton, threadsButton } 
 import { shared } from "../state.js";
 import { prAction, signals, votesText } from "../status.js";
 import { t } from "../texts.js";
-import { ago, cap, esc, markdown, orderPill, pill } from "../util.js";
+import { aged, cap, esc, markdown, orderPill, pill } from "../util.js";
 import { backLink, conversationHtml, filePanel, finishPage, pagePlaceholder } from "./parts.js";
 
 // The page of one pull request (#pr/<id>/<tab>), one I review or one of my PBIs: what it asks, its signals, votes,
@@ -45,7 +45,7 @@ export function renderPr() {
   view.innerHTML = `<div class="links">${backLink()}<a href="${esc(pr.url)}" target="_blank" style="margin-left:auto">${esc(t("openInAdo"))}</a></div>
     <div class="pbi-head">
       <div class="row-meta">${pill(status, cap(hint))}
-        <span>${[`PR ${pr.id}`, `${pr.repository} → ${pr.targetBranch}`, pr.author, t("since")(ago(pr.createdDate))].filter(Boolean).map(esc).join(" · ")}</span></div>
+        <span>${[`PR ${pr.id}`, `${pr.repository} → ${pr.targetBranch}`, pr.author, aged(pr.createdDate, t("since"))].filter(Boolean).map(esc).join(" · ")}</span></div>
       <h1>${esc(pr.title)}</h1>
       ${active ? `<div class="row-line">${signals(pr)}</div><div class="muted">${esc(t("votesLabel"))} ${votesText(pr)}</div>` : ""}
       <div class="muted">${items ? `${esc(t("linkedItems"))} ${items}` : esc(t("noWorkItem"))}</div>

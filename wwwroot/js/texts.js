@@ -2,7 +2,7 @@
 const s = n => n > 1 ? "s" : "";
 const texts = {
   fr: {
-    locale: "fr-FR", day: "j", title: "Aujourd'hui", since: age => `il y a ${age}`,
+    locale: "fr-FR", day: "j", minutes: n => n < 1 ? "moins d'une minute" : `${n} minute${s(n)}`, title: "Aujourd'hui", since: age => `il y a ${age}`,
     loading: "Chargement...", refreshNow: "Rafraîchir maintenant", close: "Fermer", back: "Retour", fileMissing: path => `Fichier introuvable dans le vault : ${path}`,
     fileNotMarkdown: path => `Le lecteur n'affiche que les fichiers Markdown. Ce fichier est dans le vault : ${path}`, details: "Détails",
     reviewsTitle: "Relectures de code", itemsTitle: "Mes PBIs", loadingPrs: "Chargement des PRs...", loadingPbis: "Chargement des PBIs...",
@@ -126,7 +126,7 @@ const texts = {
     qSaveFailed: message => `Enregistrement impossible : ${message}`, qNone: "Aucune question pour ce PBI", qEmptyFilter: "Aucune question dans cette liste.", qReadIndex: "Lire l'index",
   },
   en: {
-    locale: "en-GB", day: "d", title: "Today", since: age => `${age} ago`,
+    locale: "en-GB", day: "d", minutes: n => n < 1 ? "less than a minute" : `${n} minute${s(n)}`, title: "Today", since: age => `${age} ago`,
     loading: "Loading...", refreshNow: "Refresh now", close: "Close", back: "Back", fileMissing: path => `No such file in the vault: ${path}`,
     fileNotMarkdown: path => `The reader only shows Markdown files. This file is in the vault: ${path}`, details: "Details",
     reviewsTitle: "Code reviews", itemsTitle: "My PBIs", loadingPrs: "Loading pull requests...", loadingPbis: "Loading PBIs...",

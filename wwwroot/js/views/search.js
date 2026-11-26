@@ -1,7 +1,7 @@
 import { claudeButton } from "../claude.js";
 import { shared } from "../state.js";
 import { t } from "../texts.js";
-import { ago, esc, pill } from "../util.js";
+import { aged, esc, pill } from "../util.js";
 
 // Search (#search/<words>): the words typed in the header, looked for in Azure DevOps (work items and pull requests
 // of the project) and in the markdown files of the vault, by GET /api/search. A number alone, "#1201" or "!4215",
@@ -72,7 +72,7 @@ export function renderSearch() {
   const prRow = pr => {
     const state = pr.status === "completed" ? t("merged") : pr.status === "abandoned" ? t("abandoned") : "";
     return row(pill(pr.isMine ? "WAIT" : "", pr.isMine ? t("searchMine")("PR") : "PR"),
-      [`PR ${pr.id}`, `${pr.repository} → ${pr.targetBranch}`, pr.author, state || t("since")(ago(pr.createdDate))].filter(Boolean).map(esc).join(" · "),
+      [`PR ${pr.id}`, `${pr.repository} → ${pr.targetBranch}`, pr.author, state || aged(pr.createdDate, t("since"))].filter(Boolean).map(esc).join(" · "),
       mark(pr.title), known.has(pr.id) ? `#pr/${pr.id}` : "", where(pr),
       known.has(pr.id) ? `<a class="btn" href="#pr/${pr.id}">${esc(t("details"))}</a>`
         : `${pr.status === "active" && !pr.isMine ? `<button data-claude="review/${pr.id}" data-query="&amp;addReviewer=1" data-label="claudeReview">${esc(t("claudeReview"))}</button>` : ""}${adoLink(pr.url)}`);
@@ -82,7 +82,7 @@ export function renderSearch() {
   const fileRow = file => {
     const question = file.question && [t("qStates")[file.question.state] ?? file.question.state, file.question.to && `${t("qAskedTo")} ${file.question.to}`].filter(Boolean).join(" · ");
     return `<article class="row pad result"><div class="row-meta">${pill(file.question?.state === "waiting" ? "TODO" : file.pbi ? "WAIT" : "", file.pbi ? `PBI #${file.pbi}` : file.folder || "Vault")}
-        <span>${[file.file.replaceAll("/", " / "), t("updatedAgo")(ago(file.updated)), file.count > 0 && t("searchPassages")(file.count), question].filter(Boolean).map(esc).join(" · ")}</span></div>
+        <span>${[file.file.replaceAll("/", " / "), aged(file.updated, t("updatedAgo")), file.count > 0 && t("searchPassages")(file.count), question].filter(Boolean).map(esc).join(" · ")}</span></div>
       <h3><a href="/${esc(file.file.split("/").map(encodeURIComponent).join("/"))}">${mark(file.title)}</a></h3>
       ${file.passages.map(passage => `<div class="row-line">${mark(passage)}</div>`).join("")}</article>`;
   };
